@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@answerlay/embed — CDN demo</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 720px;
+        margin: 40px auto;
+        padding: 0 16px;
+        color: #18181b;
+      }
+      pre {
+        background: #f4f4f5;
+        padding: 12px;
+        border-radius: 6px;
+        overflow-x: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>@answerlay/embed — CDN demo</h1>
+    <p>
+      This page demonstrates the embed widget loaded from the local Vite build,
+      consuming fixture JSON in <code>./fixtures/</code>. On a real site, you
+      would point <code>data-config-url</code> at your published config.
+    </p>
+
+    <h2>Snippet</h2>
+    <pre><code>&lt;script type="module" src="https://cdn.jsdelivr.net/npm/@answerlay/embed@1/dist/embed.js"&gt;&lt;/script&gt;
+&lt;answerlay-chat
+  data-assistant-id="demo"
+  data-config-url="https://your-cdn.example.com/assistants/demo/config.json"
+&gt;&lt;/answerlay-chat&gt;</code></pre>
+
+    <p>The widget renders in the bottom-right corner of the page.</p>
+
+    <script type="module" src="/src/embed.ts"></script>
+    <answerlay-chat
+      data-assistant-id="demo"
+      data-config-url="./fixtures/config.json"
+    ></answerlay-chat>
+  </body>
+</html>

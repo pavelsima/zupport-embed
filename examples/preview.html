@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@answerlay/embed — In-app preview</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: #f4f4f5;
+        color: #18181b;
+      }
+      .frame {
+        max-width: 420px;
+        height: 600px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      h1 {
+        text-align: center;
+      }
+      p {
+        text-align: center;
+        color: #52525b;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Preview mode</h1>
+    <p>
+      <code>data-preview="true"</code> renders the chat as an inline panel with
+      a desktop / mobile toggle in the header. Used inside the Answerlay app to
+      replace the legacy <code>ChatWindow.vue</code> + <code>ScenarioChatPanel.vue</code> pair.
+    </p>
+    <div class="frame">
+      <answerlay-chat
+        data-preview
+        data-assistant-id="demo"
+        data-config-url="./fixtures/config.json"
+      ></answerlay-chat>
+    </div>
+    <script type="module" src="/src/embed.ts"></script>
+  </body>
+</html>

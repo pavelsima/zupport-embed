@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "builtAt": "2026-05-07T00:00:00.000Z",
+  "fallbackMessage": "I'm not sure about that one — did you mean one of these?",
+  "scenarios": [
+    {
+      "id": "shipping",
+      "question": "How long does shipping take?",
+      "variants": [
+        "When will my order arrive?",
+        "Delivery times",
+        "How fast is shipping?"
+      ],
+      "answer": "Standard shipping takes 3–5 business days within the EU and 5–10 business days internationally. Express options are available at checkout."
+    },
+    {
+      "id": "returns",
+      "question": "What is your return policy?",
+      "variants": [
+        "Can I return an item?",
+        "Refund process",
+        "How do I return something?"
+      ],
+      "answer": "You can return any unworn item within 30 days for a full refund. Start a return from the order page in your account."
+    },
+    {
+      "id": "support",
+      "question": "How do I contact support?",
+      "variants": [
+        "Talk to a human",
+        "Email support",
+        "Customer service contact"
+      ],
+      "answer": "Email **support@acme.example** or open a ticket from the help centre. We respond within 24 hours on business days."
+    }
+  ]
+}
