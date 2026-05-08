@@ -19,12 +19,12 @@ interface VariantConfig {
 const VARIANTS: Record<WllamaTier, VariantConfig> = {
   B: {
     modelUrl:
-      'https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct-GGUF/resolve/main/smollm2-360m-instruct-q4_k_m.gguf',
+      'https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf',
     filename: 'smollm2-360m-q4.gguf',
   },
   C: {
     modelUrl:
-      'https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct-GGUF/resolve/main/smollm2-135m-instruct-q4_k_m.gguf',
+      'https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf',
     filename: 'smollm2-135m-q4.gguf',
   },
 }

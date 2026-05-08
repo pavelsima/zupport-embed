@@ -48,6 +48,7 @@ export class ChatController implements ReactiveController {
   private host: ReactiveControllerHost
   private opts: ControllerOptions
   private engine: Engine | null = null
+  private enginePromise: Promise<Engine | null> | null = null
   private scenariosEngine: ScenariosEngine | null = null
   private embedder: QueryEmbedder | null = null
   private scenariosPayload: ScenariosPayload | null = null
@@ -140,12 +141,20 @@ export class ChatController implements ReactiveController {
     await this.fetchScenarios()
     this.setStatus('ready')
     this.opts.emit('answerlay-ready', { tier: tier.tier, mode: tier.mode })
+
+    // Pre-warm the engine immediately so the model is ready on the first
+    // message instead of blocking it. Tier D (mobile/scenarios-only) has no
+    // LLM to load.
+    if (tier.tier !== 'D') {
+      void this.ensureEngine()
+    }
   }
 
   setMode(mode: 'mobile' | 'desktop'): void {
     if (this.state.tier?.mode === mode) return
     this.engine?.destroy()
     this.engine = null
+    this.enginePromise = null
     this.opts.modeOverride = mode
     this.setState({ tier: null })
     void selectTier({
@@ -213,7 +222,12 @@ export class ChatController implements ReactiveController {
     return this.embedder
   }
 
-  private async ensureEngine(): Promise<Engine | null> {
+  private ensureEngine(): Promise<Engine | null> {
+    if (!this.enginePromise) this.enginePromise = this._initEngine()
+    return this.enginePromise
+  }
+
+  private async _initEngine(): Promise<Engine | null> {
     if (this.engine) return this.engine
     const tier = this.state.tier
     if (!tier) return null

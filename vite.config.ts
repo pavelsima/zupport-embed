@@ -16,10 +16,14 @@ const EXTERNAL_FOR_LIB = [
   '@wllama/wllama',
 ]
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const isLib = mode === 'lib'
 
   return {
+    server: {
+      port: 5173,
+      cors: true,
+    },
     build: {
       outDir: 'dist',
       // Both passes write into dist/, so don't blow it away on the second
