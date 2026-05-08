@@ -4,33 +4,104 @@ on:
   push:
     branches: [main]
 
+# Don't cancel an in-flight release; let one finish before the next starts.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
   contents: write
-  pull-requests: write
   id-token: write
 
 jobs:
   release:
-    if: github.repository == 'answerlay/embed'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           registry-url: 'https://registry.npmjs.org'
-      - run: npm ci
+
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --run
       - run: npm run build
-      - uses: changesets/action@v1
+      - run: npm run size
+
+      - name: Read version from package.json
+        id: ver
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check if git tag already exists
+        id: tag
+        run: |
+          if git rev-parse "v${{ steps.ver.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag the release commit
+        if: steps.tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ steps.ver.outputs.version }}" -m "Release v${{ steps.ver.outputs.version }}"
+          git push origin "v${{ steps.ver.outputs.version }}"
+
+      - name: Create GitHub Release with built artifacts
+        if: steps.tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
         with:
-          publish: npx changeset publish
-          version: npx changeset version
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: v${{ steps.ver.outputs.version }}
+          generate_release_notes: true
+          files: |
+            dist/embed.js
+            dist/embed.js.map
+            dist/index.js
+            dist/index.js.map
+
+      - name: Check if version is already on npm
+        id: npm
+        run: |
+          if npm view "@answerlay/embed@${{ steps.ver.outputs.version }}" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Publishing to npm makes jsDelivr serve the new version automatically:
+      #   https://cdn.jsdelivr.net/npm/@answerlay/embed@<version>/dist/embed.js
+      #   https://cdn.jsdelivr.net/npm/@answerlay/embed@1/dist/embed.js   (major-pin)
+      #   https://cdn.jsdelivr.net/npm/@answerlay/embed/dist/embed.js     (latest)
+      - name: Publish to npm
+        if: steps.npm.outputs.published == 'false'
+        run: npm publish --access public --provenance
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Release run"
+            echo ""
+            echo "- **Version (package.json):** \`${{ steps.ver.outputs.version }}\`"
+            echo "- **Git tag created:** \`${{ steps.tag.outputs.exists == 'false' }}\`"
+            echo "- **Published to npm:** \`${{ steps.npm.outputs.published == 'false' }}\`"
+            echo ""
+            echo "### CDN URLs (after npm propagation, ~1 min)"
+            echo ""
+            echo '```'
+            echo "https://cdn.jsdelivr.net/npm/@answerlay/embed@${{ steps.ver.outputs.version }}/dist/embed.js"
+            echo "https://cdn.jsdelivr.net/npm/@answerlay/embed@latest/dist/embed.js"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

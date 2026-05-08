@@ -19,6 +19,9 @@ export class AnswerlayChat extends LitElement {
   @property({ type: String, attribute: 'data-config-url' })
   configUrl: string | null = null
 
+  @property({ type: String, attribute: 'data-config-base-url' })
+  configBaseUrl: string | null = null
+
   @property({ type: String, attribute: 'data-mode-override' })
   modeOverride: string | null = null
 
@@ -52,6 +55,7 @@ export class AnswerlayChat extends LitElement {
     this.controller = new ChatController(this, {
       assistantId: this.assistantId,
       configUrl: this.configUrl,
+      configBaseUrl: this.configBaseUrl,
       modeOverride: parseMode(this.modeOverride),
       tierOverride: parseTier(this.tierOverride),
       disableCache: this.disableCache,

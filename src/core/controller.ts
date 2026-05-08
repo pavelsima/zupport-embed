@@ -27,6 +27,10 @@ import {
 export interface ControllerOptions {
   assistantId: string
   configUrl: string | null
+  // Override the default Firebase Storage bucket. When neither
+  // `configUrl` nor `inlineConfig` is supplied, the loader derives
+  // `${configBaseUrl}/public%2Fassistants%2F${id}%2Fconfig.json?alt=media`.
+  configBaseUrl: string | null
   modeOverride: 'mobile' | 'desktop' | null
   tierOverride: Tier | null
   disableCache: boolean
@@ -108,6 +112,7 @@ export class ChatController implements ReactiveController {
       const resolved = await loadConfig({
         assistantId: this.opts.assistantId,
         configUrl: this.opts.configUrl,
+        configBaseUrl: this.opts.configBaseUrl,
         inlineConfig: this.opts.inlineConfig,
       })
       this.setState({ config: resolved })

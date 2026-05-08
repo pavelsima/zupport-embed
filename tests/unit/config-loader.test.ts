@@ -29,8 +29,55 @@ describe('loadConfig', () => {
     expect((globalThis.fetch as unknown as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled()
   })
 
-  it('throws when neither configUrl nor inlineConfig is provided', async () => {
-    await expect(loadConfig({ assistantId: 'a' })).rejects.toThrow()
+  it('throws when neither assistantId, configUrl, nor inlineConfig is provided', async () => {
+    await expect(loadConfig({ assistantId: '' })).rejects.toThrow()
+  })
+
+  it('derives the config URL from assistantId when configUrl is omitted', async () => {
+    let captured: string | undefined
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      captured = typeof input === 'string' ? input : (input as URL).toString()
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          schema: 1,
+          assistantId: 'aaa',
+          config: {},
+          scenariosPublicUrl: null,
+          vectorsPublicUrl: null,
+          builtAt: '2026-01-01',
+        }),
+      } as Response
+    })
+    const result = await loadConfig({ assistantId: 'aaa' })
+    expect(captured).toContain('public%2Fassistants%2Faaa%2Fconfig.json')
+    expect(captured).toContain('alt=media')
+    expect(result.assistantId).toBe('aaa')
+  })
+
+  it('respects a custom configBaseUrl', async () => {
+    let captured: string | undefined
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      captured = typeof input === 'string' ? input : (input as URL).toString()
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          schema: 1,
+          assistantId: 'a',
+          config: {},
+          scenariosPublicUrl: null,
+          vectorsPublicUrl: null,
+          builtAt: '',
+        }),
+      } as Response
+    })
+    await loadConfig({
+      assistantId: 'a',
+      configBaseUrl: 'https://example.com/v0/b/my-bucket/o',
+    })
+    expect(captured).toContain('https://example.com/v0/b/my-bucket/o/')
   })
 
   it('throws on non-2xx HTTP', async () => {

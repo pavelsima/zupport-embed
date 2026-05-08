@@ -15,6 +15,11 @@ export {
   type Status,
 } from './core/store'
 export { loadConfig, type ResolvedConfig } from './core/config-loader'
+export {
+  DEFAULT_CONFIG_BASE_URL,
+  buildPublicJsonUrl,
+  deriveConfigUrl,
+} from './core/defaults'
 export { selectTier, isMobile, isIOS, isAndroid, stepDownTier } from './engines/select'
 export { shortCircuit, buildScenarioFuse } from './engines/short-circuit'
 export type { ShortCircuitResult, ShortCircuitHit, ShortCircuitMiss } from './engines/short-circuit'

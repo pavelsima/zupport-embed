@@ -1,9 +1,10 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+  # Pushes to `main` are handled by release.yml, which runs the same checks
+  # before tagging + publishing — so we don't double-run them here.
+  workflow_dispatch:
 
 jobs:
   test:

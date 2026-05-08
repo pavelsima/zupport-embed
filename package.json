@@ -59,11 +59,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/answerlay/embed.git"
+    "url": "git+https://github.com/Answerlay-embed.git"
   },
-  "homepage": "https://github.com/answerlay/embed#readme",
+  "homepage": "https://github.com/Answerlay-embed#readme",
   "bugs": {
-    "url": "https://github.com/answerlay/embed/issues"
+    "url": "https://github.com/Answerlay-embed/issues"
   },
   "publishConfig": {
     "access": "public",

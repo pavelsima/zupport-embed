@@ -21,10 +21,6 @@ export const parseTier = (v: string | null): Tier | null => {
   return null
 }
 
-export const deriveDefaultConfigUrl = (assistantId: string): string => {
-  // No safe default — customers must always supply data-config-url so the
-  // widget knows where to fetch their bot's published JSON. This is a
-  // placeholder for self-host docs; we throw in config-loader if neither
-  // configUrl nor inlineConfig is provided.
-  return `/assistants/${encodeURIComponent(assistantId)}/config.json`
-}
+// Re-export the builder so consumers don't have to reach into core/defaults
+// to construct URLs themselves.
+export { deriveConfigUrl, buildPublicJsonUrl, DEFAULT_CONFIG_BASE_URL } from './defaults'

@@ -21,21 +21,23 @@
     </style>
   </head>
   <body>
-    <h1>@answerlay/embed — CDN demo</h1>
+    <h1>@answerlay/embed — demo</h1>
     <p>
-      This page demonstrates the embed widget loaded from the local Vite build,
-      consuming fixture JSON in <code>./fixtures/</code>. On a real site, you
-      would point <code>data-config-url</code> at your published config.
+      Just an <code>assistant-id</code>; the widget builds the
+      <code>config.json</code> URL itself using the default Firebase Storage
+      bucket.
     </p>
 
     <h2>Snippet</h2>
     <pre><code>&lt;script type="module" src="https://cdn.jsdelivr.net/npm/@answerlay/embed@1/dist/embed.js"&gt;&lt;/script&gt;
-&lt;answerlay-chat
-  data-assistant-id="demo"
-  data-config-url="https://your-cdn.example.com/assistants/demo/config.json"
-&gt;&lt;/answerlay-chat&gt;</code></pre>
+&lt;answerlay-chat data-assistant-id="YOUR_ASSISTANT_ID"&gt;&lt;/answerlay-chat&gt;</code></pre>
 
-    <p>The widget renders in the bottom-right corner of the page.</p>
+    <h2>Local fixture demo</h2>
+    <p>
+      Pages that don't have a real published config can still render the
+      widget by passing <code>data-config-url</code> to point at a local file.
+      That's what this example does:
+    </p>
 
     <script type="module" src="/src/embed.ts"></script>
     <answerlay-chat

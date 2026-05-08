@@ -13,11 +13,10 @@ Embeddable chat widget for [Answerlay](https://github.com/answerlay) — a Lit w
 
 ```html
 <script type="module" src="https://cdn.jsdelivr.net/npm/@answerlay/embed@1/dist/embed.js"></script>
-<answerlay-chat
-  data-assistant-id="YOUR_ASSISTANT_ID"
-  data-config-url="https://your-bucket.example.com/assistants/YOUR_ASSISTANT_ID/config.json"
-></answerlay-chat>
+<answerlay-chat data-assistant-id="YOUR_ASSISTANT_ID"></answerlay-chat>
 ```
+
+That's it — the widget derives the config URL from your assistant ID using the default Firebase Storage bucket. Override the bucket with `data-config-base-url`, or pass a fully custom URL via `data-config-url`.
 
 ### npm
 
@@ -35,7 +34,8 @@ import '@answerlay/embed/embed'
 | Attribute | Type | Default | Purpose |
 | --- | --- | --- | --- |
 | `data-assistant-id` | string | required | Identifier used to derive the default config URL |
-| `data-config-url` | string | derived | Override URL (e.g. local dev, self-host) |
+| `data-config-base-url` | string | bundled bucket | Override the Firebase Storage bucket base URL |
+| `data-config-url` | string | derived | Fully custom URL (skips the assistant-id derivation) |
 | `data-mode-override` | `mobile \| desktop` | auto | Skip auto-detection |
 | `data-tier-override` | `A \| B \| C \| D` | auto | Force engine tier |
 | `data-preview` | boolean | `false` | Enable in-app preview UI (mode toggle) |
