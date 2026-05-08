@@ -131,9 +131,4 @@ export class WllamaEngine implements Engine {
     this.wllama = null
   }
 
-  // Suppress unused-variable warnings for fields used only in error messages.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private get _variantTag(): WllamaTier {
-    return this.variant
-  }
 }

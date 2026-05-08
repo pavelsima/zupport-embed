@@ -47,7 +47,6 @@ const qwenInitOnce = async (modelBaseUrl?: string) => {
     qwenGenerator = await tryDevice('webgpu')
     qwenDevice = 'webgpu'
   } catch (webgpuErr) {
-    // eslint-disable-next-line no-console
     console.warn('[answerlay] WebGPU init failed, falling back to WASM:', webgpuErr)
     qwenGenerator = await tryDevice('wasm')
     qwenDevice = 'wasm'
