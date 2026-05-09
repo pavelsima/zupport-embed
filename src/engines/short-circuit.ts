@@ -6,13 +6,14 @@ import {
   mergeSuggestions,
   type ScenarioMatch,
 } from '../rag/matcher'
-import type { PublishedScenario } from '../rag/scenarios-types'
+import type { PublishedScenario, ScenarioMatcherModel } from '../rag/scenarios-types'
 
 export interface ShortCircuitInput {
   question: string
   scenarios: PublishedScenario[]
   fuse?: Fuse<{ id: string; question: string; variants: string; ref: PublishedScenario }>
   embed?: (text: string) => Promise<number[]>
+  embeddingModel?: ScenarioMatcherModel
 }
 
 export interface ShortCircuitHit {
@@ -51,7 +52,7 @@ export const shortCircuit = async (
   if (input.embed) {
     try {
       const qVec = await input.embed(input.question)
-      const emb = embeddingMatch(input.scenarios, qVec)
+      const emb = embeddingMatch(input.scenarios, qVec, input.embeddingModel)
       rankedEmbedding = emb.ranked
       if (emb.best) {
         return {

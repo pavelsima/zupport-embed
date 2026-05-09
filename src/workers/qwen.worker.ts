@@ -17,6 +17,16 @@ interface RetrievalChunkLite {
   text: string
 }
 
+const LANGUAGE_NAMES: Record<string, string> = {
+  cs: 'Czech', en: 'English', de: 'German', fr: 'French', es: 'Spanish',
+  it: 'Italian', pt: 'Portuguese', pl: 'Polish', nl: 'Dutch', ja: 'Japanese',
+}
+
+// Strip <think>...</think> blocks that Qwen3 may emit in thinking mode.
+// Uses a greedy match so partial blocks (mid-stream) are also cleaned.
+const stripThinkingTags = (text: string): string =>
+  text.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<think>[\s\S]*/g, '').trim()
+
 const QWEN_MODEL_ID = 'onnx-community/Qwen3-0.6B-ONNX'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -59,18 +69,24 @@ const qwenBuildMessages = ({
   shopName,
   question,
   chunks,
+  language,
 }: {
   shopName: string
   question: string
   chunks: RetrievalChunkLite[]
+  language?: string
 }) => {
   const today = new Date().toLocaleDateString()
   const context = chunks.map((c) => `[${c.heading}]\n${c.text}`).join('\n\n')
+  const langName = language ? (LANGUAGE_NAMES[language] ?? language) : null
+  const languageInstruction = langName
+    ? `You MUST respond ONLY in ${langName}. Do NOT use English or any other language unless ${langName} is English.\n`
+    : `Use the same language as the customer's question.\n`
   const system =
     `You are a helpful support assistant for ${shopName}.\n` +
     `Answer questions using ONLY the context provided below.\n` +
     `If the information is not in the context, say so honestly and suggest contacting support.\n` +
-    `Be concise. Use the same language as the customer's question.\n` +
+    `Be concise. ${languageInstruction}` +
     `Today's date: ${today}\n\n` +
     `--- RELEVANT INFORMATION ---\n${context}\n---`
   return [
@@ -84,6 +100,7 @@ const qwenHandleQuery = async (payload: {
   shopName: string
   chunks: RetrievalChunkLite[]
   maxTokens?: number
+  language?: string
 }) => {
   if (!qwenGenerator) throw new Error('Model not initialised — call init first.')
   if (qwenIsGenerating) throw new Error('Already generating a response.')
@@ -102,13 +119,24 @@ const qwenHandleQuery = async (payload: {
       enable_thinking: false,
     })
 
-    let collected = ''
+    // Buffer for the current token stream. We accumulate and strip thinking
+    // tags lazily — only post clean tokens to the UI.
+    let rawCollected = ''
+    let cleanSent = ''
+
     const streamer = new TextStreamer(qwenGenerator.tokenizer, {
       skip_prompt: true,
       skip_special_tokens: true,
       callback_function: (text: string) => {
-        collected += text
-        qwenPost({ type: 'token', token: text })
+        rawCollected += text
+        // Strip any <think>...</think> block that may have completed, then
+        // compute what incremental clean text is new since last post.
+        const cleanNow = stripThinkingTags(rawCollected)
+        const delta = cleanNow.slice(cleanSent.length)
+        if (delta) {
+          cleanSent = cleanNow
+          qwenPost({ type: 'token', token: delta })
+        }
       },
     })
 
@@ -118,7 +146,9 @@ const qwenHandleQuery = async (payload: {
       streamer,
     })
 
-    qwenPost({ type: 'done', text: collected })
+    // Final clean pass in case a partial <think> block was still open.
+    const finalText = stripThinkingTags(rawCollected)
+    qwenPost({ type: 'done', text: finalText })
   } finally {
     qwenIsGenerating = false
   }
@@ -136,4 +166,5 @@ const qwenHandleQuery = async (payload: {
       where: data.type === 'init' ? 'init' : 'query',
     })
   }
+
 }

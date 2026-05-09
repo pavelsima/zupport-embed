@@ -96,7 +96,7 @@ export const selectTier = async (opts: SelectOptions = {}): Promise<TierSelectio
     }
   }
 
-  // Tier B — at least 2 GB-ish, can handle SmolLM2-360M.
+  // Tier B — at least 2 GB-ish, can handle Qwen3-0.6B GGUF.
   if ((ram ?? 4) >= 2) {
     return {
       tier: 'B',
@@ -108,23 +108,11 @@ export const selectTier = async (opts: SelectOptions = {}): Promise<TierSelectio
     }
   }
 
-  // Tier C — squeeze 135M GGUF onto low-RAM machines.
-  if ((ram ?? 2) >= 1) {
-    return {
-      tier: 'C',
-      mode: 'desktop',
-      reason: 'low-memory',
-      webgpu,
-      deviceMemoryGB,
-      hardwareConcurrency,
-    }
-  }
-
-  // Tier D — scenarios-only, anything still works.
+  // Tier D — scenarios-only for low-RAM (<2 GB) devices.
   return {
     tier: 'D',
     mode: 'desktop',
-    reason: 'unsupported',
+    reason: 'low-memory',
     webgpu,
     deviceMemoryGB,
     hardwareConcurrency,
@@ -133,7 +121,7 @@ export const selectTier = async (opts: SelectOptions = {}): Promise<TierSelectio
 
 // Step the tier down one rung. Used when an engine fails to init at runtime.
 export const stepDownTier = (tier: Tier): Tier | null => {
-  const order: Tier[] = ['A', 'B', 'C', 'D']
+  const order: Tier[] = ['A', 'B', 'D']
   const i = order.indexOf(tier)
   return i >= 0 && i < order.length - 1 ? order[i + 1]! : null
 }

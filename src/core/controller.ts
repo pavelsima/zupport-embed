@@ -245,7 +245,7 @@ export class ChatController implements ReactiveController {
           await e.init(onProgress)
           return e
         }
-        if (t === 'B' || t === 'C') {
+        if (t === 'B') {
           const e = new WllamaEngine(t, this.opts.modelBaseUrl ?? undefined)
           await e.init(onProgress)
           return e
@@ -286,7 +286,7 @@ export class ChatController implements ReactiveController {
     }
 
     // Fell all the way through — no LLM, scenarios-only. We only reach this
-    // when the original tier was A/B/C (D returns early above), so always
+    // when the original tier was A/B (D returns early above), so always
     // notify the host of the downgrade.
     const updated: TierSelection = { ...tier, tier: 'D', reason: 'engine-init-failed' }
     this.setState({ tier: updated })
@@ -314,12 +314,13 @@ export class ChatController implements ReactiveController {
       return
     }
 
-    // Tiers A/B/C — try short-circuit first.
+    // Tiers A/B — try short-circuit first.
     if (this.scenariosPayload) {
       const result = await shortCircuit({
         question: trimmed,
         scenarios: this.scenariosPayload.scenarios,
         embed: (t) => this.ensureEmbedder().embed(t),
+        embeddingModel: this.scenariosPayload.embeddingModel,
       })
       if (result.kind === 'scenario') {
         const id = newId('a')
@@ -370,6 +371,8 @@ export class ChatController implements ReactiveController {
     this.pushMessage({ id, role: 'assistant', content: '', status: 'streaming', source: 'llm' })
     this.setStatus('streaming')
 
+    const language = this.state.config?.config.language || undefined
+
     try {
       let collected = ''
       const finalText = await engine.ask(
@@ -378,6 +381,7 @@ export class ChatController implements ReactiveController {
           shopName: this.state.config?.config.name ?? 'us',
           chunks,
           maxTokens,
+          language,
         },
         (token) => {
           collected += token

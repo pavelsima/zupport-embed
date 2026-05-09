@@ -2,11 +2,11 @@
 // renders; the tier just decides how it answers.
 //
 // Tier A — Qwen3-0.6B on WebGPU (best, ~400 MB)
-// Tier B — SmolLM2-360M wllama WASM (~270 MB)
-// Tier C — SmolLM2-135M wllama WASM (~80 MB)
-// Tier D — scenarios-only (no LLM, no download). Also the mobile path.
+// Tier B — Qwen3-0.6B wllama WASM (~400 MB, 2 GB+ RAM)
+// Tier D — scenarios-only (no LLM, no download). Also the mobile path and
+//           the fallback for low-RAM (<2 GB) devices.
 
-export type Tier = 'A' | 'B' | 'C' | 'D'
+export type Tier = 'A' | 'B' | 'D'
 
 export type EngineMode = 'generation' | 'retrieval' | 'scenarios'
 
@@ -29,14 +29,12 @@ export interface TierSelection {
 
 export const TIER_LABELS: Record<Tier, string> = {
   A: 'Qwen3-0.6B (WebGPU)',
-  B: 'SmolLM2-360M (WASM)',
-  C: 'SmolLM2-135M (WASM)',
+  B: 'Qwen3-0.6B (WASM)',
   D: 'Scenarios',
 }
 
 export const TIER_APPROX_MB: Record<Tier, number> = {
   A: 400,
-  B: 270,
-  C: 80,
+  B: 400,
   D: 0,
 }

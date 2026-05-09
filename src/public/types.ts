@@ -10,6 +10,10 @@ export interface AssistantConfig {
   topK: number
   maxTokens: number
   scenarioFallbackMessage?: string
+  // BCP-47-ish language code ('cs', 'en', 'de', …). When set, the LLM is
+  // hard-instructed to respond in this language. When absent, language is
+  // auto-detected from the user's query.
+  language?: string
 }
 
 export const DEFAULT_CONFIG: AssistantConfig = {

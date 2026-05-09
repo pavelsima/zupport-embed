@@ -20,6 +20,7 @@ export class AnswerlayTypewriter extends LitElement {
 
   private rafId: number | null = null
   private lastFrame = 0
+  private lastText = ''
 
   static override styles = css`
     :host {
@@ -49,6 +50,7 @@ export class AnswerlayTypewriter extends LitElement {
     this.stop()
     if (!this.text) {
       this.visibleLength = 0
+      this.lastText = ''
       return
     }
     const reduceMotion =
@@ -56,10 +58,17 @@ export class AnswerlayTypewriter extends LitElement {
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     if (!this.animated || reduceMotion) {
       this.visibleLength = this.text.length
+      this.lastText = this.text
       this.dispatchEvent(new CustomEvent('typewriter-done'))
       return
     }
-    this.visibleLength = 0
+    // When text grows (streaming token appended), keep visibleLength so the
+    // animation continues from where it was instead of restarting from zero.
+    // Only reset when text is genuinely replaced (not an extension).
+    if (!this.text.startsWith(this.lastText)) {
+      this.visibleLength = 0
+    }
+    this.lastText = this.text
     this.lastFrame = 0
     this.rafId = requestAnimationFrame(this.tick)
   }

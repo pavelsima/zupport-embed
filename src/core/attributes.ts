@@ -17,7 +17,7 @@ export const parseMode = (v: string | null): 'mobile' | 'desktop' | null => {
 }
 
 export const parseTier = (v: string | null): Tier | null => {
-  if (v === 'A' || v === 'B' || v === 'C' || v === 'D') return v
+  if (v === 'A' || v === 'B' || v === 'D') return v
   return null
 }
 

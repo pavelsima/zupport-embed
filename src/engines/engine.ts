@@ -18,6 +18,7 @@ export interface AskInput {
   shopName: string
   chunks: RetrievalChunk[]
   maxTokens?: number
+  language?: string
 }
 
 export interface InitResult {

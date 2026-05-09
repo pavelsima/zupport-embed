@@ -1,5 +1,10 @@
 import Fuse from 'fuse.js'
-import type { PublishedScenario } from './scenarios-types'
+import type { PublishedScenario, ScenarioMatcherModel } from './scenarios-types'
+
+// The runtime query embedder always uses mlm-l12-v2. Comparing against
+// scenario embeddings from a different model produces meaningless cosine
+// scores, so we guard against that here.
+const RUNTIME_EMBEDDING_MODEL: ScenarioMatcherModel = 'mlm-l12-v2'
 
 // Confidence thresholds tuned for short questions (3–15 words). The lexical
 // pass uses Fuse's "lower is better" raw score; the embedding pass uses
@@ -82,7 +87,14 @@ export interface EmbeddingResult {
 export const embeddingMatch = (
   scenarios: PublishedScenario[],
   queryVec: number[],
+  payloadModel?: ScenarioMatcherModel,
 ): EmbeddingResult => {
+  // If the scenario embeddings were produced by a different model than the
+  // runtime query embedder, the vectors are in incompatible semantic spaces.
+  // Skip embedding comparison and fall back to lexical-only matching.
+  if (payloadModel && payloadModel !== RUNTIME_EMBEDDING_MODEL) {
+    return { best: null, ranked: [] }
+  }
   if (queryVec.length === 0) return { best: null, ranked: [] }
   const scored: ScenarioMatch[] = []
   for (const s of scenarios) {

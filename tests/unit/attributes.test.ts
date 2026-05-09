@@ -31,12 +31,13 @@ describe('parseMode', () => {
 })
 
 describe('parseTier', () => {
-  it('accepts A/B/C/D', () => {
-    for (const t of ['A', 'B', 'C', 'D']) {
+  it('accepts A/B/D', () => {
+    for (const t of ['A', 'B', 'D']) {
       expect(parseTier(t)).toBe(t)
     }
   })
-  it('returns null on garbage', () => {
+  it('returns null for removed Tier C and other garbage', () => {
+    expect(parseTier('C')).toBeNull()
     expect(parseTier('E')).toBeNull()
     expect(parseTier('a')).toBeNull()
     expect(parseTier(null)).toBeNull()

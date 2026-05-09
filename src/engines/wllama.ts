@@ -9,7 +9,10 @@ import type {
 import { buildChatMlPrompt, STOP_TOKENS } from './prompt'
 import { TIER_APPROX_MB, TIER_LABELS, type Tier } from './tier'
 
-export type WllamaTier = 'B' | 'C'
+const stripThinkingTags = (text: string): string =>
+  text.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<think>[\s\S]*/g, '').trim()
+
+export type WllamaTier = 'B'
 
 interface VariantConfig {
   modelUrl: string
@@ -19,13 +22,8 @@ interface VariantConfig {
 const VARIANTS: Record<WllamaTier, VariantConfig> = {
   B: {
     modelUrl:
-      'https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf',
-    filename: 'smollm2-360m-q4.gguf',
-  },
-  C: {
-    modelUrl:
-      'https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf',
-    filename: 'smollm2-135m-q4.gguf',
+      'https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf',
+    filename: 'qwen3-0.6b-q4.gguf',
   },
 }
 
@@ -91,15 +89,17 @@ export class WllamaEngine implements Engine {
     if (this.busy) throw new Error('wllama engine is already generating')
     this.busy = true
 
-    let collected = ''
+    let rawCollected = ''
+    let cleanSent = ''
     try {
       const prompt = buildChatMlPrompt({
         question: input.question,
         shopName: input.shopName,
         chunks: input.chunks,
+        language: input.language,
       })
 
-      const result = await this.wllama.createCompletion(prompt, {
+      await this.wllama.createCompletion(prompt, {
         nPredict: input.maxTokens ?? 256,
         sampling: { temp: 0.3, top_k: 40, top_p: 0.9 },
         // wllama 2.4 typed stopTokens as number[] (token IDs). We use string
@@ -107,20 +107,22 @@ export class WllamaEngine implements Engine {
         // runtime; cast to keep TS happy without rewriting the engine.
         stopTokens: STOP_TOKENS as unknown as number[],
         onNewToken: (_token: number, _piece: Uint8Array, currentText: string) => {
-          const delta = currentText.slice(collected.length)
+          rawCollected = currentText
+          const cleanNow = stripThinkingTags(rawCollected)
+          const delta = cleanNow.slice(cleanSent.length)
           if (delta) {
-            collected = currentText
+            cleanSent = cleanNow
             onToken?.(delta)
           }
         },
       })
 
-      const finalText = (typeof result === 'string' ? result : collected) || collected
-      const cleaned = STOP_TOKENS.reduce(
+      const raw = rawCollected
+      const finalText = STOP_TOKENS.reduce(
         (s, t) => (s.endsWith(t) ? s.slice(0, -t.length).trim() : s),
-        finalText.trim(),
+        raw.trim(),
       )
-      return cleaned
+      return stripThinkingTags(finalText)
     } finally {
       this.busy = false
     }
