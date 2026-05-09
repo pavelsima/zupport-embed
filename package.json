@@ -41,7 +41,7 @@
     "lint": "eslint src tests",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,html,css,md}\" \"tests/**/*.ts\"",
     "size": "size-limit",
-    "release": "changeset publish"
+    "release": "echo 'Releases are created automatically by CI on push to main'"
   },
   "keywords": [
     "answerlay",
@@ -65,11 +65,7 @@
   "bugs": {
     "url": "https://github.com/Answerlay-embed/issues"
   },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
-  "dependencies": {
+"dependencies": {
     "@huggingface/transformers": "^3.0.0",
     "@wllama/wllama": "^2.4.0",
     "franc-min": "^6.2.0",

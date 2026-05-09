@@ -11,7 +11,6 @@ concurrency:
 
 permissions:
   contents: write
-  id-token: write
 
 jobs:
   release:
@@ -25,7 +24,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          registry-url: 'https://registry.npmjs.org'
 
       - run: npm ci --ignore-scripts
       - run: npm run lint
@@ -65,28 +63,6 @@ jobs:
           files: |
             dist/embed.js
             dist/embed.js.map
-            dist/index.js
-            dist/index.js.map
-
-      - name: Check if version is already on npm
-        id: npm
-        run: |
-          if npm view "@answerlay/embed@${{ steps.ver.outputs.version }}" version >/dev/null 2>&1; then
-            echo "published=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "published=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Publishing to npm makes jsDelivr serve the new version automatically:
-      #   https://cdn.jsdelivr.net/npm/@answerlay/embed@<version>/dist/embed.js
-      #   https://cdn.jsdelivr.net/npm/@answerlay/embed@1/dist/embed.js   (major-pin)
-      #   https://cdn.jsdelivr.net/npm/@answerlay/embed/dist/embed.js     (latest)
-      - name: Publish to npm
-        if: steps.npm.outputs.published == 'false'
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: 'true'
 
       - name: Summary
         if: always()
@@ -96,12 +72,16 @@ jobs:
             echo ""
             echo "- **Version (package.json):** \`${{ steps.ver.outputs.version }}\`"
             echo "- **Git tag created:** \`${{ steps.tag.outputs.exists == 'false' }}\`"
-            echo "- **Published to npm:** \`${{ steps.npm.outputs.published == 'false' }}\`"
             echo ""
-            echo "### CDN URLs (after npm propagation, ~1 min)"
+            echo "### Script tag URL"
             echo ""
+            echo '```html'
+            echo '<script src="https://github.com/${{ github.repository }}/releases/latest/download/embed.js"></script>'
             echo '```'
-            echo "https://cdn.jsdelivr.net/npm/@answerlay/embed@${{ steps.ver.outputs.version }}/dist/embed.js"
-            echo "https://cdn.jsdelivr.net/npm/@answerlay/embed@latest/dist/embed.js"
+            echo ""
+            echo "Or pinned to this version:"
+            echo ""
+            echo '```html'
+            echo "<script src=\"https://github.com/${{ github.repository }}/releases/download/v${{ steps.ver.outputs.version }}/embed.js\"></script>"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
