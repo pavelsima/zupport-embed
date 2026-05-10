@@ -1,6 +1,6 @@
 {
   "name": "@answerlay/embed",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Embeddable Lit web component chat widget for Answerlay — runs in-browser LLMs (Qwen3, SmolLM2) on desktop, scenario matching on mobile.",
   "license": "MIT",
   "type": "module",
@@ -59,11 +59,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Answerlay-embed.git"
+    "url": "git+https://github.com/pavelsima/Answerlay-embed.git"
   },
-  "homepage": "https://github.com/Answerlay-embed#readme",
+  "homepage": "https://github.com/pavelsima/Answerlay-embed#readme",
   "bugs": {
-    "url": "https://github.com/Answerlay-embed/issues"
+    "url": "https://github.com/pavelsima/Answerlay-embed/issues"
   },
 "dependencies": {
     "@huggingface/transformers": "^3.0.0",

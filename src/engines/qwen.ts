@@ -6,6 +6,10 @@ import type {
   ProgressCallback,
 } from './engine'
 import { TIER_APPROX_MB, TIER_LABELS } from './tier'
+// Inlined as a Blob URL so the IIFE embed bundle stays a single file —
+// classic <script src=…> from GitHub Releases can't resolve a separate
+// worker chunk cross-origin.
+import QwenWorker from '../workers/qwen.worker.ts?worker&inline'
 
 interface PendingTask {
   resolve: (text: string) => void
@@ -35,10 +39,7 @@ export class QwenEngine implements Engine {
       this.initResolve = resolve
       this.initReject = reject
 
-      const worker = new Worker(new URL('../workers/qwen.worker.ts', import.meta.url), {
-        type: 'module',
-        name: 'answerlay-qwen',
-      })
+      const worker = new QwenWorker({ name: 'answerlay-qwen' })
       this.worker = worker
 
       worker.onmessage = (e) => {

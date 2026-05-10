@@ -39,7 +39,11 @@ export default defineConfig(({ mode, command }) => {
           }
         : {
             entry: resolve(__dirname, 'src/embed.ts'),
-            formats: ['es'],
+            // IIFE so a single classic <script src="…"> tag from GitHub
+            // Releases works on any origin — module scripts trigger CORS
+            // checks that GitHub's release-asset CDN doesn't satisfy.
+            formats: ['iife'],
+            name: 'Answerlay',
             fileName: () => 'embed.js',
           },
       rollupOptions: {

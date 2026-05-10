@@ -1,6 +1,11 @@
 // Thin wrapper around the embedder web worker. Lazily spawns the worker
 // on first .embed() call so the launcher button shows up immediately.
 
+// Inlined as a Blob URL so the IIFE embed bundle stays a single file —
+// classic <script src=…> from GitHub Releases can't resolve a separate
+// worker chunk cross-origin.
+import EmbedderWorker from '../workers/embedder.worker.ts?worker&inline'
+
 interface EmbedderRequest {
   resolve: (vec: number[]) => void
   reject: (err: Error) => void
@@ -17,10 +22,7 @@ export class QueryEmbedder {
   private ensureWorker(): Promise<void> {
     if (this.readyPromise) return this.readyPromise
     this.readyPromise = new Promise<void>((resolve, reject) => {
-      const worker = new Worker(new URL('../workers/embedder.worker.ts', import.meta.url), {
-        type: 'module',
-        name: 'answerlay-embedder',
-      })
+      const worker = new EmbedderWorker({ name: 'answerlay-embedder' })
       this.worker = worker
       worker.onmessage = (e) => {
         const data = e.data

@@ -9,14 +9,16 @@ Embeddable chat widget for [Answerlay](https://github.com/answerlay) — a Lit w
 
 ## Install
 
-### CDN (recommended)
+### Drop-in `<script>` (recommended)
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/npm/@answerlay/embed@1/dist/embed.js"></script>
+<script src="https://github.com/pavelsima/Answerlay-embed/releases/latest/download/embed.js"></script>
 <answerlay-chat data-assistant-id="YOUR_ASSISTANT_ID"></answerlay-chat>
 ```
 
-That's it — the widget derives the config URL from your assistant ID using the default Firebase Storage bucket. Override the bucket with `data-config-base-url`, or pass a fully custom URL via `data-config-url`.
+The bundle is a self-contained classic IIFE — no `type="module"`, no separate worker chunks, no CORS gymnastics on the host page. The widget derives the config URL from your assistant ID using the default Firebase Storage bucket. Override the bucket with `data-config-base-url`, or pass a fully custom URL via `data-config-url`.
+
+To pin a specific version, swap `latest` for a tag — e.g. `releases/download/v0.1.0/embed.js`.
 
 ### npm
 
