@@ -141,6 +141,9 @@ export class AnswerlayChat extends LitElement {
 
   private renderModeToggle() {
     if (!this.preview) return nothing
+    // Host page is driving mode via data-mode-override — suppress the
+    // in-panel toggle so the two don't fight.
+    if (this.modeOverride) return nothing
     const current = this.controller.state.tier?.mode ?? 'desktop'
     return html`
       <div class="mode-toggle" role="group" aria-label="Preview mode">
