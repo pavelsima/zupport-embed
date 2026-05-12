@@ -29,20 +29,27 @@
     </p>
 
     <h2>Snippet</h2>
-    <pre><code>&lt;script src="https://github.com/pavelsima/Answerlay-embed/releases/latest/download/embed.js"&gt;&lt;/script&gt;
-&lt;answerlay-chat data-assistant-id="YOUR_ASSISTANT_ID"&gt;&lt;/answerlay-chat&gt;</code></pre>
+    <pre><code>&lt;script
+  src="https://github.com/pavelsima/Answerlay-embed/releases/latest/download/embed.js"
+  data-assistant-id="YOUR_ASSISTANT_ID"
+  defer
+&gt;&lt;/script&gt;</code></pre>
 
     <h2>Local fixture demo</h2>
     <p>
       Pages that don't have a real published config can still render the
       widget by passing <code>data-config-url</code> to point at a local file.
-      That's what this example does:
+      That's what this example does — no <code>&lt;answerlay-chat&gt;</code>
+      tag, just the script. Dev mode uses <code>type="module"</code> because
+      Vite serves the source as ESM; the production bundle is IIFE and does
+      not need it.
     </p>
 
-    <script type="module" src="/src/embed.ts"></script>
-    <answerlay-chat
+    <script
+      type="module"
+      src="/src/embed.ts"
       data-assistant-id="demo"
       data-config-url="./fixtures/config.json"
-    ></answerlay-chat>
+    ></script>
   </body>
 </html>

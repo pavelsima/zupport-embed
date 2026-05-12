@@ -1,6 +1,6 @@
 {
   "name": "@answerlay/embed",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Embeddable Lit web component chat widget for Answerlay — runs in-browser LLMs (Qwen3, SmolLM2) on desktop, scenario matching on mobile.",
   "license": "MIT",
   "type": "module",

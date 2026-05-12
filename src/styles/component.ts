@@ -55,11 +55,43 @@ export const chatStyles = css`
     align-items: center;
     justify-content: center;
     transition: transform 0.15s ease, background 0.15s ease;
+    animation: answerlay-launcher-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   .launcher:hover {
     background: var(--answerlay-brand-hover);
-    transform: translateY(-1px);
+    transform: translateY(-1px) scale(1.04);
+  }
+
+  .launcher:active {
+    transform: translateY(0) scale(0.96);
+  }
+
+  .launcher svg {
+    transition: transform 0.2s ease;
+  }
+
+  :host([open]) .launcher svg {
+    transform: rotate(90deg);
+  }
+
+  @keyframes answerlay-launcher-in {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .launcher,
+    .launcher svg {
+      animation: none;
+      transition: none;
+    }
   }
 
   .launcher.position-right {
@@ -89,6 +121,29 @@ export const chatStyles = css`
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    transform-origin: bottom right;
+    animation: answerlay-panel-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .panel.position-left {
+    transform-origin: bottom left;
+  }
+
+  @keyframes answerlay-panel-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .panel {
+      animation: none;
+    }
   }
 
   .panel.position-right {

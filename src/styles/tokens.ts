@@ -24,15 +24,4 @@ export const tokens = css`
 
     color-scheme: light;
   }
-
-  @media (prefers-color-scheme: dark) {
-    :host {
-      --answerlay-bg: #18181b;
-      --answerlay-fg: #fafafa;
-      --answerlay-muted-bg: #27272a;
-      --answerlay-muted-fg: #a1a1aa;
-      --answerlay-border: #3f3f46;
-      color-scheme: dark;
-    }
-  }
 `
