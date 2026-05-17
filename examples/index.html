@@ -24,8 +24,10 @@
     <h1>@answerlay/embed — demo</h1>
     <p>
       Just an <code>assistant-id</code>; the widget builds the
-      <code>config.json</code> URL itself using the default Firebase Storage
-      bucket.
+      <code>config.json</code> URL itself using the base URL baked in at
+      build time (<code>VITE_CONFIG_BASE_URL</code>): in dev this is
+      <code>http://localhost:8080</code> (Docker Caddy direct port), in prod
+      <code>https://cdn.answerlay.com</code>.
     </p>
 
     <h2>Snippet</h2>

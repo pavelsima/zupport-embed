@@ -32,6 +32,7 @@ export class ScenariosEngine {
       scenarios: this.payload.scenarios,
       fuse: this.fuse ?? undefined,
       embed: this.embed,
+      embeddingModel: this.payload.embeddingModel,
       matchThreshold: this.matchThreshold,
     })
 

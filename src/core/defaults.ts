@@ -1,29 +1,27 @@
-// Default Firebase Storage bucket where the main Answerlay app publishes
-// per-assistant public JSON. Change this constant when you deploy under a
-// different bucket — every consumer that doesn't supply
-// `data-config-base-url` (or a fully custom `data-config-url`) follows it.
+// Base URL where the Answerlay queue service publishes per-assistant JSON.
+// In development this resolves to the local Docker assets container;
+// in production it points to the CDN.
 //
-// Files served from the bucket follow the path:
-//   public/assistants/{assistantId}/{config|scenarios|vectors-mlm12}.json
+// Files follow the path:  assistants/{assistantId}/{config|scenarios|vectors-e5s}.json
 //
-// The bucket must allow unauthenticated reads on these paths (or the
-// per-file token must be embedded inside the published config.json's
-// scenariosPublicUrl / vectorsPublicUrl fields).
-export const DEFAULT_CONFIG_BASE_URL =
-  'https://firebasestorage.googleapis.com/v0/b/fincalc-prod.firebasestorage.app/o'
+// Override per-embed via `data-config-base-url` (relative URL rewrite) or
+// `data-config-url` (fully custom config.json URL, bypasses this entirely).
+//
+// The VITE_CONFIG_BASE_URL env var is baked in at build time:
+//   .env.development  →  http://localhost:8080  (Docker Caddy direct port)
+//   .env.production   →  https://cdn.answerlay.com
+export const DEFAULT_CONFIG_BASE_URL: string =
+  import.meta.env.VITE_CONFIG_BASE_URL ?? 'https://cdn.answerlay.com'
 
-// Build a Firebase Storage download URL for a given object path. Firebase
-// requires the *whole* object path to be URL-encoded (slashes become %2F)
-// and the `alt=media` query so the API returns the file body directly
-// rather than its metadata.
+// Build the public URL for an assistant JSON file.
+// Path layout on the assets server: assistants/{assistantId}/{filename}
 export const buildPublicJsonUrl = (
   baseUrl: string,
   assistantId: string,
   filename: string,
 ): string => {
-  const path = `public/assistants/${assistantId}/${filename}`
   const trimmedBase = baseUrl.replace(/\/$/, '')
-  return `${trimmedBase}/${encodeURIComponent(path)}?alt=media`
+  return `${trimmedBase}/assistants/${assistantId}/${filename}`
 }
 
 export const deriveConfigUrl = (assistantId: string, baseUrl?: string | null): string =>

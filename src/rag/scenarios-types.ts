@@ -2,7 +2,7 @@
 // running in scenarios mode, and the desktop chat consults for the
 // pre-LLM short-circuit.
 
-export type ScenarioMatcherModel = 'mlm-l6-v2' | 'mlm-l12-v2'
+export type ScenarioMatcherModel = 'mlm-l6-v2' | 'mlm-l12-v2' | 'e5-small'
 
 export interface PublishedScenario {
   id: string
