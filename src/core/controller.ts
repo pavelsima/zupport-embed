@@ -8,7 +8,7 @@ import type { Tier, TierSelection } from '../engines/tier'
 import { shortCircuit } from '../engines/short-circuit'
 import { cosineTopK, toRetrievalChunk } from '../rag/retrieve'
 import { QueryEmbedder } from '../rag/query-embedder'
-import { getCachedVectors, setCachedVectors } from '../rag/idb'
+import { clearCachedVectors, getCachedVectors, setCachedVectors } from '../rag/idb'
 import {
   DEFAULT_FALLBACK_MESSAGE,
   type ScenariosPayload,
@@ -94,8 +94,77 @@ export class ChatController implements ReactiveController {
     })
   }
 
+  // Last completed user→LLM-assistant pair, used to give the model one turn
+  // of follow-up context. Scenarios/fallbacks/errors are skipped — they
+  // aren't model-generated and would teach the wrong style.
+  private buildHistoryForLLM(): { role: 'user' | 'assistant'; content: string }[] {
+    const msgs = this.state.messages
+    const MAX = 1000
+    const cap = (s: string) => (s.length > MAX ? s.slice(0, MAX) : s)
+    for (let i = msgs.length - 1; i >= 1; i--) {
+      const a = msgs[i]
+      const u = msgs[i - 1]
+      if (
+        a?.role === 'assistant' &&
+        a.status === 'done' &&
+        a.source === 'llm' &&
+        a.content &&
+        u?.role === 'user' &&
+        u.content
+      ) {
+        return [
+          { role: 'user', content: cap(u.content) },
+          { role: 'assistant', content: cap(a.content) },
+        ]
+      }
+    }
+    return []
+  }
+
   setOpen(open: boolean): void {
     this.setState({ open })
+  }
+
+  // Re-pull config, scenarios, and vectors. Used by the dashboard test panel
+  // after a publish (and by its Reset button). Streaming continues to play
+  // out — only the underlying RAG state is swapped.
+  async refresh(opts: { clearMessages?: boolean; bypassCache?: boolean } = {}): Promise<void> {
+    if (opts.bypassCache) {
+      try {
+        await clearCachedVectors(this.opts.assistantId, 'mlm12')
+      } catch {
+        // best-effort
+      }
+    }
+    const prevDisable = this.opts.disableCache
+    if (opts.bypassCache) this.opts.disableCache = true
+    try {
+      const resolved = await loadConfig({
+        assistantId: this.opts.assistantId,
+        configUrl: this.opts.configUrl,
+        configBaseUrl: this.opts.configBaseUrl,
+        inlineConfig: this.opts.inlineConfig,
+      })
+      this.setState({ config: resolved })
+      await this.fetchScenarios()
+      this.vectorsPayload = null
+      await this.fetchVectors()
+    } catch (err) {
+      this.opts.emit('answerlay-error', {
+        phase: 'config',
+        error: err instanceof Error ? err.message : String(err),
+      })
+    } finally {
+      this.opts.disableCache = prevDisable
+    }
+    if (opts.clearMessages) {
+      const greeting = this.state.config?.config.greeting
+      const seed: ChatMessage[] = greeting
+        ? [{ id: newId('g'), role: 'assistant', content: greeting, status: 'done' }]
+        : []
+      this.setState({ messages: seed, errorMessage: null })
+      this.setStatus('ready')
+    }
   }
 
   /**
@@ -174,7 +243,11 @@ export class ChatController implements ReactiveController {
       if (!res.ok) throw new Error(`scenarios.json: HTTP ${res.status}`)
       const payload = (await res.json()) as ScenariosPayload
       this.scenariosPayload = payload
-      this.scenariosEngine = new ScenariosEngine(payload, (text) => this.ensureEmbedder().embed(text))
+      this.scenariosEngine = new ScenariosEngine(
+        payload,
+        (text) => this.ensureEmbedder().embed(text),
+        this.state.config?.config.scenarioMatchThreshold,
+      )
     } catch (err) {
       this.opts.emit('answerlay-error', {
         phase: 'scenarios',
@@ -321,6 +394,7 @@ export class ChatController implements ReactiveController {
         scenarios: this.scenariosPayload.scenarios,
         embed: (t) => this.ensureEmbedder().embed(t),
         embeddingModel: this.scenariosPayload.embeddingModel,
+        matchThreshold: this.state.config?.config.scenarioMatchThreshold,
       })
       if (result.kind === 'scenario') {
         const id = newId('a')
@@ -372,6 +446,7 @@ export class ChatController implements ReactiveController {
     this.setStatus('streaming')
 
     const language = this.state.config?.config.language || undefined
+    const history = this.buildHistoryForLLM()
 
     try {
       let collected = ''
@@ -382,6 +457,7 @@ export class ChatController implements ReactiveController {
           chunks,
           maxTokens,
           language,
+          history,
         },
         (token) => {
           collected += token

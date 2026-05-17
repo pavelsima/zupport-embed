@@ -88,6 +88,7 @@ export const embeddingMatch = (
   scenarios: PublishedScenario[],
   queryVec: number[],
   payloadModel?: ScenarioMatcherModel,
+  threshold?: number,
 ): EmbeddingResult => {
   // If the scenario embeddings were produced by a different model than the
   // runtime query embedder, the vectors are in incompatible semantic spaces.
@@ -109,7 +110,8 @@ export const embeddingMatch = (
     }
   }
   scored.sort((a, b) => b.score - a.score)
-  const best = scored[0] && scored[0].score >= EMBEDDING_CONFIDENT ? scored[0] : null
+  const cutoff = typeof threshold === 'number' ? threshold : EMBEDDING_CONFIDENT
+  const best = scored[0] && scored[0].score >= cutoff ? scored[0] : null
   return { best, ranked: scored.slice(0, Math.max(SUGGEST_TOP_N, 5)) }
 }
 

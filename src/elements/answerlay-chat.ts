@@ -48,6 +48,10 @@ export class AnswerlayChat extends LitElement {
   @query('.messages') private messagesEl?: HTMLElement
 
   private controller!: ChatController
+  private followStream = true
+  private lastScrollTop = 0
+  private messagesResizeObserver: ResizeObserver | null = null
+  private observedMessagesEl: HTMLElement | null = null
 
   override connectedCallback(): void {
     super.connectedCallback()
@@ -77,11 +81,62 @@ export class AnswerlayChat extends LitElement {
     if (changed.has('open') && this.open) {
       requestAnimationFrame(() => this.inputEl?.focus())
     }
-    // Auto-scroll to bottom on message change.
+    this.ensureScrollObservers()
+    this.maybeAutoScroll()
+  }
+
+  override disconnectedCallback(): void {
+    this.messagesResizeObserver?.disconnect()
+    this.messagesResizeObserver = null
+    this.observedMessagesEl = null
+    super.disconnectedCallback()
+  }
+
+  private ensureScrollObservers(): void {
     const el = this.messagesEl
-    if (el) {
-      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-      if (distFromBottom < 200) el.scrollTop = el.scrollHeight
+    if (!el || el === this.observedMessagesEl) return
+    if (this.observedMessagesEl) {
+      this.messagesResizeObserver?.disconnect()
+    }
+    this.observedMessagesEl = el
+    this.lastScrollTop = el.scrollTop
+    el.addEventListener('scroll', this.onMessagesScroll, { passive: true })
+    // The typewriter grows the bubble between renders — re-pin on that growth
+    // so the streamed text stays in view.
+    this.messagesResizeObserver = new ResizeObserver(() => this.maybeAutoScroll())
+    this.messagesResizeObserver.observe(el)
+    for (const child of Array.from(el.children)) {
+      this.messagesResizeObserver.observe(child)
+    }
+  }
+
+  private onMessagesScroll = (): void => {
+    const el = this.messagesEl
+    if (!el) return
+    const isStreaming = this.controller?.state.messages.some((m) => m.status === 'streaming')
+    if (isStreaming && el.scrollTop < this.lastScrollTop - 20) {
+      this.followStream = false
+    }
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (distFromBottom < 40) this.followStream = true
+    this.lastScrollTop = el.scrollTop
+  }
+
+  private maybeAutoScroll(): void {
+    const el = this.messagesEl
+    if (!el) return
+    const isStreaming = this.controller?.state.messages.some((m) => m.status === 'streaming')
+    if (isStreaming && this.followStream) {
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight
+        this.lastScrollTop = el.scrollTop
+      })
+      return
+    }
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (distFromBottom < 200) {
+      el.scrollTop = el.scrollHeight
+      this.lastScrollTop = el.scrollTop
     }
   }
 
@@ -97,11 +152,19 @@ export class AnswerlayChat extends LitElement {
     this.controller.setOpen(this.open)
   }
 
+  // Public API for the dashboard test panel: re-fetch config/scenarios/vectors
+  // (optionally bypassing the IDB cache) and optionally reset the conversation.
+  refresh(opts: { clearMessages?: boolean; bypassCache?: boolean } = {}): Promise<void> {
+    this.followStream = true
+    return this.controller.refresh(opts)
+  }
+
   private onSubmit = (e: Event): void => {
     e.preventDefault()
     const text = this.input.trim()
     if (!text) return
     this.input = ''
+    this.followStream = true
     void this.controller.send(text)
   }
 
@@ -113,6 +176,7 @@ export class AnswerlayChat extends LitElement {
   }
 
   private onQuickReply = (scenarioId: string): void => {
+    this.followStream = true
     void this.controller.sendQuickReply(scenarioId)
   }
 

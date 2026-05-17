@@ -109,6 +109,7 @@ export class QwenEngine implements Engine {
         chunks: input.chunks,
         maxTokens: input.maxTokens ?? 256,
         language: input.language,
+        history: input.history,
       })
     })
   }

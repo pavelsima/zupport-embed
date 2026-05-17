@@ -1,10 +1,16 @@
 import type { RetrievalChunk } from '../rag/types'
 
+export interface PromptHistoryTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export interface PromptInput {
   question: string
   shopName: string
   chunks: RetrievalChunk[]
   language?: string
+  history?: PromptHistoryTurn[]
 }
 
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -42,11 +48,18 @@ export const buildSystemPrompt = ({ question: _question, shopName, chunks, langu
 
 export const buildChatMlPrompt = (input: PromptInput): string => {
   const system = buildSystemPrompt(input)
+  const historyBlock = (input.history ?? [])
+    .map(
+      (t) =>
+        `<|im_start|>${t.role}\n${t.role === 'assistant' ? `<think>\n\n</think>\n\n${t.content}` : t.content}<|im_end|>\n`,
+    )
+    .join('')
   // Prefill the assistant turn with an empty <think> block so Qwen3 skips
   // thinking mode and generates only the answer. This works with raw ChatML
   // (i.e. when the GGUF chat template isn't applied by the runtime).
   return (
     `<|im_start|>system\n${system}<|im_end|>\n` +
+    historyBlock +
     `<|im_start|>user\n${input.question}<|im_end|>\n` +
     `<|im_start|>assistant\n<think>\n\n</think>\n\n`
   )

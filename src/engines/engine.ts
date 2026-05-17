@@ -13,12 +13,18 @@ export interface ProgressUpdate {
 export type ProgressCallback = (p: ProgressUpdate) => void
 export type GenerationCallback = (token: string) => void
 
+export interface HistoryTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export interface AskInput {
   question: string
   shopName: string
   chunks: RetrievalChunk[]
   maxTokens?: number
   language?: string
+  history?: HistoryTurn[]
 }
 
 export interface InitResult {

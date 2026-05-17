@@ -21,6 +21,7 @@ export class ScenariosEngine {
   constructor(
     private readonly payload: ScenariosPayload,
     private readonly embed?: (text: string) => Promise<number[]>,
+    private readonly matchThreshold?: number,
   ) {
     this.fuse = buildScenarioFuse(payload.scenarios)
   }
@@ -31,6 +32,7 @@ export class ScenariosEngine {
       scenarios: this.payload.scenarios,
       fuse: this.fuse ?? undefined,
       embed: this.embed,
+      matchThreshold: this.matchThreshold,
     })
 
     if (result.kind === 'scenario') {

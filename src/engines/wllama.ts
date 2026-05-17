@@ -97,6 +97,7 @@ export class WllamaEngine implements Engine {
         shopName: input.shopName,
         chunks: input.chunks,
         language: input.language,
+        history: input.history,
       })
 
       await this.wllama.createCompletion(prompt, {

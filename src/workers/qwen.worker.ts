@@ -70,11 +70,13 @@ const qwenBuildMessages = ({
   question,
   chunks,
   language,
+  history,
 }: {
   shopName: string
   question: string
   chunks: RetrievalChunkLite[]
   language?: string
+  history?: { role: 'user' | 'assistant'; content: string }[]
 }) => {
   const today = new Date().toLocaleDateString()
   const context = chunks.map((c) => `[${c.heading}]\n${c.text}`).join('\n\n')
@@ -91,6 +93,7 @@ const qwenBuildMessages = ({
     `--- RELEVANT INFORMATION ---\n${context}\n---`
   return [
     { role: 'system', content: system },
+    ...(history ?? []),
     { role: 'user', content: question },
   ]
 }
@@ -101,6 +104,7 @@ const qwenHandleQuery = async (payload: {
   chunks: RetrievalChunkLite[]
   maxTokens?: number
   language?: string
+  history?: { role: 'user' | 'assistant'; content: string }[]
 }) => {
   if (!qwenGenerator) throw new Error('Model not initialised — call init first.')
   if (qwenIsGenerating) throw new Error('Already generating a response.')
