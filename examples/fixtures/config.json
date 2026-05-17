@@ -4,6 +4,7 @@
   "config": {
     "name": "Acme Support",
     "greeting": "Hi! Ask me anything about Acme.",
+    "scenarioFallbackMessage": "I'm not sure about that — try one of the topics below or email support@acme.example.",
     "brandColor": "#6f42c1",
     "position": "bottom-right",
     "topK": 4,

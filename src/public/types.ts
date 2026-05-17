@@ -17,6 +17,8 @@ export interface AssistantConfig {
   // hard-instructed to respond in this language. When absent, language is
   // auto-detected from the user's query.
   language?: string
+  // Scenario IDs shown as quick-reply buttons under the greeting (max 8).
+  greetingQuickReplyIds?: string[]
 }
 
 export const DEFAULT_CONFIG: AssistantConfig = {

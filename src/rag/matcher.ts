@@ -1,10 +1,10 @@
 import Fuse from 'fuse.js'
 import type { PublishedScenario, ScenarioMatcherModel } from './scenarios-types'
 
-// The runtime query embedder always uses mlm-l12-v2. Comparing against
+// The runtime query embedder always uses e5-small. Comparing against
 // scenario embeddings from a different model produces meaningless cosine
 // scores, so we guard against that here.
-const RUNTIME_EMBEDDING_MODEL: ScenarioMatcherModel = 'mlm-l12-v2'
+const RUNTIME_EMBEDDING_MODEL: ScenarioMatcherModel = 'e5-small'
 
 // Confidence thresholds tuned for short questions (3–15 words). The lexical
 // pass uses Fuse's "lower is better" raw score; the embedding pass uses

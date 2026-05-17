@@ -114,4 +114,42 @@ describe('loadConfig', () => {
     expect(result.config.brandColor).toBe(DEFAULT_CONFIG.brandColor)
     expect(result.config.position).toBe(DEFAULT_CONFIG.position)
   })
+
+  it('preserves scenarioFallbackMessage from fetched config', async () => {
+    stubFetch({
+      ok: true,
+      body: {
+        schema: 1,
+        assistantId: 'a',
+        config: { scenarioFallbackMessage: 'Custom fallback' },
+        scenariosPublicUrl: null,
+        vectorsPublicUrl: null,
+        builtAt: '2026-01-01',
+      },
+    })
+    const result = await loadConfig({
+      assistantId: 'a',
+      configUrl: 'https://x/config.json',
+    })
+    expect(result.config.scenarioFallbackMessage).toBe('Custom fallback')
+  })
+
+  it('preserves greetingQuickReplyIds from fetched config', async () => {
+    stubFetch({
+      ok: true,
+      body: {
+        schema: 1,
+        assistantId: 'a',
+        config: { greetingQuickReplyIds: ['ship', 'return'] },
+        scenariosPublicUrl: null,
+        vectorsPublicUrl: null,
+        builtAt: '2026-01-01',
+      },
+    })
+    const result = await loadConfig({
+      assistantId: 'a',
+      configUrl: 'https://x/config.json',
+    })
+    expect(result.config.greetingQuickReplyIds).toEqual(['ship', 'return'])
+  })
 })

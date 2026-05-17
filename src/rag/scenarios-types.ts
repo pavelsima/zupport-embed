@@ -25,3 +25,15 @@ export interface ScenariosPayload {
 
 export const DEFAULT_FALLBACK_MESSAGE =
   "I don't have an answer for that yet — did you mean one of these?"
+
+/** Config wins over scenarios.json so config-only republish updates mobile fallback immediately. */
+export function resolveScenarioFallbackMessage(
+  configMessage?: string,
+  scenariosMessage?: string,
+): string {
+  const fromConfig = configMessage?.trim()
+  if (fromConfig) return fromConfig
+  const fromScenarios = scenariosMessage?.trim()
+  if (fromScenarios) return fromScenarios
+  return DEFAULT_FALLBACK_MESSAGE
+}

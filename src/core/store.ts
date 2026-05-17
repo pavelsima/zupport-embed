@@ -51,3 +51,21 @@ export const scenarioToQuickReply = (s: PublishedScenario) => ({
   scenarioId: s.id,
   label: s.question,
 })
+
+export const MAX_GREETING_QUICK_REPLIES = 8
+
+/** Resolve config greeting quick-reply IDs to quick-reply buttons (order preserved). */
+export const resolveGreetingQuickReplies = (
+  ids: string[] | undefined,
+  scenarios: PublishedScenario[],
+): { scenarioId: string; label: string }[] => {
+  if (!ids?.length) return []
+  const byId = new Map(scenarios.map((s) => [s.id, s]))
+  const out: { scenarioId: string; label: string }[] = []
+  for (const id of ids) {
+    if (out.length >= MAX_GREETING_QUICK_REPLIES) break
+    const s = byId.get(id)
+    if (s) out.push(scenarioToQuickReply(s))
+  }
+  return out
+}

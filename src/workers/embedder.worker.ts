@@ -1,8 +1,9 @@
 /// <reference lib="webworker" />
-// MiniLM-L12-v2 multilingual query embedder, WASM only (works on iOS).
+// multilingual-e5-small query embedder, WASM only (works on iOS).
+// User queries must use the e5 "query: " prefix to match queue-produced vectors.
 // Loads transformers.js from jsDelivr to keep the embed bundle small.
 
-const EMBEDDER_MODEL_ID = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2'
+const EMBEDDER_MODEL_ID = 'Xenova/multilingual-e5-small'
 
 const EMBEDDER_TRANSFORMERS_CDN =
   'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/dist/transformers.min.js'
@@ -31,7 +32,7 @@ const embedderInitOnce = async (modelBaseUrl?: string) => {
 
 const embedderHandleEmbed = async (id: number, text: string) => {
   if (!extractor) throw new Error('Embedder not initialised')
-  const output = await extractor(text, { pooling: 'mean', normalize: true })
+  const output = await extractor('query: ' + text, { pooling: 'mean', normalize: true })
   const data: Float32Array = output.data ?? output
   const vector = Array.from(data)
   embedderPost({ type: 'embed', id, ok: true, vector })

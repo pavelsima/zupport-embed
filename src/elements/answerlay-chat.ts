@@ -175,9 +175,9 @@ export class AnswerlayChat extends LitElement {
     }
   }
 
-  private onQuickReply = (scenarioId: string): void => {
+  private onQuickReply = (label: string): void => {
     this.followStream = true
-    void this.controller.sendQuickReply(scenarioId)
+    void this.controller.send(label)
   }
 
   private onModeSwitch = (mode: 'mobile' | 'desktop'): void => {
@@ -252,7 +252,7 @@ export class AnswerlayChat extends LitElement {
                       <button
                         class="quick-reply"
                         type="button"
-                        @click=${() => this.onQuickReply(qr.scenarioId)}
+                        @click=${() => this.onQuickReply(qr.label)}
                       >
                         ${qr.label}
                       </button>

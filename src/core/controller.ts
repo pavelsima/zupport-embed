@@ -10,7 +10,7 @@ import { cosineTopK, toRetrievalChunk } from '../rag/retrieve'
 import { QueryEmbedder } from '../rag/query-embedder'
 import { clearCachedVectors, getCachedVectors, setCachedVectors } from '../rag/idb'
 import {
-  DEFAULT_FALLBACK_MESSAGE,
+  resolveScenarioFallbackMessage,
   type ScenariosPayload,
 } from '../rag/scenarios-types'
 import type { VectorsPayload } from '../rag/types'
@@ -18,6 +18,7 @@ import { loadConfig, type ResolvedConfig } from './config-loader'
 import {
   initialState,
   newId,
+  resolveGreetingQuickReplies,
   scenarioToQuickReply,
   type ChatMessage,
   type ChatState,
@@ -53,6 +54,7 @@ export class ChatController implements ReactiveController {
   private embedder: QueryEmbedder | null = null
   private scenariosPayload: ScenariosPayload | null = null
   private vectorsPayload: VectorsPayload | null = null
+  private greetingMessageId: string | null = null
   private destroyed = false
 
   constructor(host: ReactiveControllerHost, opts: ControllerOptions) {
@@ -94,6 +96,22 @@ export class ChatController implements ReactiveController {
     })
   }
 
+  private seedGreeting(content: string): void {
+    const id = newId('g')
+    this.greetingMessageId = id
+    this.pushMessage({ id, role: 'assistant', content, status: 'done' })
+  }
+
+  private updateGreetingQuickReplies(): void {
+    if (!this.greetingMessageId) return
+    const ids = this.state.config?.config.greetingQuickReplyIds
+    const scenarios = this.scenariosPayload?.scenarios ?? []
+    const quickReplies = resolveGreetingQuickReplies(ids, scenarios)
+    this.updateMessage(this.greetingMessageId, {
+      quickReplies: quickReplies.length > 0 ? quickReplies : undefined,
+    })
+  }
+
   // Last completed user→LLM-assistant pair, used to give the model one turn
   // of follow-up context. Scenarios/fallbacks/errors are skipped — they
   // aren't model-generated and would teach the wrong style.
@@ -131,7 +149,7 @@ export class ChatController implements ReactiveController {
   async refresh(opts: { clearMessages?: boolean; bypassCache?: boolean } = {}): Promise<void> {
     if (opts.bypassCache) {
       try {
-        await clearCachedVectors(this.opts.assistantId, 'mlm12')
+        await clearCachedVectors(this.opts.assistantId, 'e5s')
       } catch {
         // best-effort
       }
@@ -147,6 +165,7 @@ export class ChatController implements ReactiveController {
       })
       this.setState({ config: resolved })
       await this.fetchScenarios()
+      this.updateGreetingQuickReplies()
       this.vectorsPayload = null
       await this.fetchVectors()
     } catch (err) {
@@ -158,11 +177,12 @@ export class ChatController implements ReactiveController {
       this.opts.disableCache = prevDisable
     }
     if (opts.clearMessages) {
+      this.greetingMessageId = null
       const greeting = this.state.config?.config.greeting
-      const seed: ChatMessage[] = greeting
-        ? [{ id: newId('g'), role: 'assistant', content: greeting, status: 'done' }]
-        : []
-      this.setState({ messages: seed, errorMessage: null })
+      if (greeting) this.seedGreeting(greeting)
+      else this.setState({ messages: [] })
+      this.setState({ errorMessage: null })
+      this.updateGreetingQuickReplies()
       this.setStatus('ready')
     }
   }
@@ -187,12 +207,7 @@ export class ChatController implements ReactiveController {
       })
       this.setState({ config: resolved })
       if (resolved.config.greeting) {
-        this.pushMessage({
-          id: newId('g'),
-          role: 'assistant',
-          content: resolved.config.greeting,
-          status: 'done',
-        })
+        this.seedGreeting(resolved.config.greeting)
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -208,6 +223,7 @@ export class ChatController implements ReactiveController {
     this.setState({ tier })
 
     await this.fetchScenarios()
+    this.updateGreetingQuickReplies()
     this.setStatus('ready')
     this.opts.emit('answerlay-ready', { tier: tier.tier, mode: tier.mode })
 
@@ -242,11 +258,19 @@ export class ChatController implements ReactiveController {
       const res = await fetch(url, { cache: 'no-cache' })
       if (!res.ok) throw new Error(`scenarios.json: HTTP ${res.status}`)
       const payload = (await res.json()) as ScenariosPayload
-      this.scenariosPayload = payload
+      const cfg = this.state.config?.config
+      const merged: ScenariosPayload = {
+        ...payload,
+        fallbackMessage: resolveScenarioFallbackMessage(
+          cfg?.scenarioFallbackMessage,
+          payload.fallbackMessage,
+        ),
+      }
+      this.scenariosPayload = merged
       this.scenariosEngine = new ScenariosEngine(
-        payload,
+        merged,
         (text) => this.ensureEmbedder().embed(text),
-        this.state.config?.config.scenarioMatchThreshold,
+        cfg?.scenarioMatchThreshold,
       )
     } catch (err) {
       this.opts.emit('answerlay-error', {
@@ -261,10 +285,10 @@ export class ChatController implements ReactiveController {
     if (!url) return
 
     if (!this.opts.disableCache) {
-      const cached = await getCachedVectors(this.opts.assistantId, 'mlm12')
+      const cached = await getCachedVectors(this.opts.assistantId, 'e5s')
       if (cached) {
         this.vectorsPayload = {
-          model: 'mlm-l12-v2',
+          model: 'e5-small',
           dim: cached.chunks[0]?.embedding.length ?? 384,
           builtAt: cached.builtAt,
           chunkCount: cached.chunks.length,
@@ -280,7 +304,7 @@ export class ChatController implements ReactiveController {
     this.vectorsPayload = payload
 
     if (!this.opts.disableCache) {
-      void setCachedVectors(this.opts.assistantId, 'mlm12', {
+      void setCachedVectors(this.opts.assistantId, 'e5s', {
         loadedAt: Date.now(),
         builtAt: payload.builtAt,
         chunks: payload.chunks,
@@ -477,8 +501,9 @@ export class ChatController implements ReactiveController {
 
   private async respondScenariosOnly(question: string): Promise<void> {
     if (!this.scenariosEngine) {
-      const fallback =
-        this.state.config?.config.scenarioFallbackMessage || DEFAULT_FALLBACK_MESSAGE
+      const fallback = resolveScenarioFallbackMessage(
+        this.state.config?.config.scenarioFallbackMessage,
+      )
       this.pushMessage({
         id: newId('a'),
         role: 'assistant',
@@ -509,27 +534,4 @@ export class ChatController implements ReactiveController {
     this.setStatus('ready')
   }
 
-  async sendQuickReply(scenarioId: string): Promise<void> {
-    const scenario = this.scenariosEngine?.scenarioById(scenarioId)
-    if (!scenario) return
-    this.pushMessage({
-      id: newId('u'),
-      role: 'user',
-      content: scenario.question,
-      status: 'done',
-    })
-    this.pushMessage({
-      id: newId('a'),
-      role: 'assistant',
-      content: scenario.answer,
-      status: 'done',
-      source: 'scenario',
-      matchedScenarioId: scenario.id,
-    })
-    this.opts.emit('answerlay-message', {
-      role: 'assistant',
-      text: scenario.answer,
-      matchedScenarioId: scenario.id,
-    })
-  }
 }
