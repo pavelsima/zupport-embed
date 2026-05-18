@@ -9,6 +9,7 @@
 
 export { AnswerlayChat } from './elements/answerlay-chat'
 export { AnswerlayTypewriter } from './elements/answerlay-typewriter'
+import { injectFonts } from './styles/fonts'
 
 export type {
   AssistantConfig,
@@ -32,6 +33,8 @@ function autoInject(): void {
   const id = script.dataset.assistantId
   if (!id) return
   if (document.querySelector('answerlay-chat')) return
+
+  injectFonts()
 
   const passthrough = [
     'assistantId',

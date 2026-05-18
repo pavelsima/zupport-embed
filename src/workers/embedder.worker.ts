@@ -26,6 +26,21 @@ const embedderInitOnce = async (modelBaseUrl?: string) => {
   extractor = await pipeline('feature-extraction', EMBEDDER_MODEL_ID, {
     dtype: 'q8',
     device: 'wasm',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    progress_callback: (p: any) => {
+      // transformers.js emits a stream of progress events while ONNX shards
+      // download. Forward them so the loading panel can show real progress.
+      embedderPost({
+        type: 'progress',
+        progress: {
+          file: p.file,
+          loaded: p.loaded,
+          total: p.total,
+          progress: typeof p.progress === 'number' ? p.progress / 100 : undefined,
+          status: p.status,
+        },
+      })
+    },
   })
   embedderPost({ type: 'ready' })
 }

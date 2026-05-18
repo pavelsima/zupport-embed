@@ -4,9 +4,42 @@ import './answerlay-typewriter'
 import { ChatController } from '../core/controller'
 import { parseMode, parseTier } from '../core/attributes'
 import type { AssistantConfig } from '../public/types'
-import type { ChatMessage } from '../core/store'
+import {
+  aggregateProgress,
+  allReady,
+  hasStageError,
+  type ChatMessage,
+} from '../core/store'
 import { chatStyles } from '../styles/component'
-import { chatIcon, closeIcon, sendIcon } from './icons'
+import {
+  alertIcon,
+  chatIcon,
+  checkIcon,
+  closeIcon,
+  sendIcon,
+  sparkleIcon,
+  userIcon,
+} from './icons'
+import { formatRelativeTime } from '../core/store'
+
+// Friendly status copy rotated in the loading panel. Avoids exposing
+// technical pipeline detail (model names, vector DBs, etc.) — those are
+// console.info'd from the controller for developers.
+const LOADING_HEADLINES = [
+  'Setting things up',
+  'Warming up',
+  'Almost ready',
+  'Getting your assistant ready',
+  'Tuning up',
+  'Just a moment',
+]
+const LOADING_SUBLINES = [
+  'Loading what we need…',
+  'Polishing the details…',
+  'Connecting the pieces…',
+  'Getting everything in place…',
+  'Doing a little bit of magic…',
+]
 
 @customElement('answerlay-chat')
 export class AnswerlayChat extends LitElement {
@@ -39,19 +72,32 @@ export class AnswerlayChat extends LitElement {
   @property({ type: Boolean, reflect: true })
   open = false
 
+  // Reflected so CSS can target `:host([open][mobile])` for fullscreen.
+  @property({ type: Boolean, reflect: true })
+  mobile = false
+
   @property({ attribute: false })
   config: AssistantConfig | null = null
 
   @state() private input = ''
+  @state() private loadingPhraseIndex = 0
+  @state() private loadingPhraseSwapping = false
 
   @query('textarea.input') private inputEl?: HTMLTextAreaElement
   @query('.messages') private messagesEl?: HTMLElement
+  @query('.close-btn') private closeBtnEl?: HTMLButtonElement
+  @query('.loading-panel') private loadingPanelEl?: HTMLElement
+
+  private loadingPhraseTimer: number | null = null
 
   private controller!: ChatController
   private followStream = true
   private lastScrollTop = 0
   private messagesResizeObserver: ResizeObserver | null = null
   private observedMessagesEl: HTMLElement | null = null
+  // Saved value of document.body.style.overflow before we locked it for
+  // mobile fullscreen; restored on close / disconnect.
+  private savedBodyOverflow: string | null = null
 
   override connectedCallback(): void {
     super.connectedCallback()
@@ -67,6 +113,29 @@ export class AnswerlayChat extends LitElement {
       emit: (name, detail) => this.emit(name, detail),
     })
     if (this.preview) this.open = true
+    document.addEventListener('keydown', this.onDocKey)
+    this.startLoadingPhraseRotation()
+  }
+
+  private startLoadingPhraseRotation(): void {
+    if (this.loadingPhraseTimer !== null) return
+    // Rotate every ~3.6s with a short opacity crossfade. Stops rotating
+    // automatically once we leave the loading panel (no work is wasted —
+    // the render branch doesn't read the index).
+    this.loadingPhraseTimer = window.setInterval(() => {
+      this.loadingPhraseSwapping = true
+      window.setTimeout(() => {
+        this.loadingPhraseIndex = (this.loadingPhraseIndex + 1) % LOADING_HEADLINES.length
+        this.loadingPhraseSwapping = false
+      }, 250)
+    }, 3600)
+  }
+
+  private stopLoadingPhraseRotation(): void {
+    if (this.loadingPhraseTimer !== null) {
+      window.clearInterval(this.loadingPhraseTimer)
+      this.loadingPhraseTimer = null
+    }
   }
 
   override updated(changed: PropertyValues): void {
@@ -78,9 +147,16 @@ export class AnswerlayChat extends LitElement {
     if (cfg) {
       this.style.setProperty('--answerlay-brand', cfg.brandColor)
     }
-    if (changed.has('open') && this.open) {
-      requestAnimationFrame(() => this.inputEl?.focus())
+    // Mirror the resolved tier mode onto the reflected `mobile` property so
+    // CSS can swap to fullscreen layout. Preview always renders desktop
+    // layout (the mode toggle inside the panel handles preview emulation).
+    const tierMode = this.controller?.state.tier?.mode
+    const nextMobile = !this.preview && tierMode === 'mobile'
+    if (nextMobile !== this.mobile) {
+      this.mobile = nextMobile
     }
+    this.syncBodyScrollLock()
+    this.manageFocus(changed)
     this.ensureScrollObservers()
     this.maybeAutoScroll()
   }
@@ -89,7 +165,58 @@ export class AnswerlayChat extends LitElement {
     this.messagesResizeObserver?.disconnect()
     this.messagesResizeObserver = null
     this.observedMessagesEl = null
+    this.releaseBodyScrollLock()
+    this.stopLoadingPhraseRotation()
+    document.removeEventListener('keydown', this.onDocKey)
     super.disconnectedCallback()
+  }
+
+  private onDocKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape' && this.open && !this.preview) {
+      this.open = false
+      this.controller.setOpen(false)
+    }
+  }
+
+  private syncBodyScrollLock(): void {
+    if (typeof document === 'undefined') return
+    if (this.preview) return
+    const shouldLock = this.open && this.mobile
+    if (shouldLock && this.savedBodyOverflow === null) {
+      this.savedBodyOverflow = document.body.style.overflow || ''
+      document.body.style.overflow = 'hidden'
+    } else if (!shouldLock) {
+      this.releaseBodyScrollLock()
+    }
+  }
+
+  private releaseBodyScrollLock(): void {
+    if (typeof document === 'undefined') return
+    if (this.savedBodyOverflow !== null) {
+      document.body.style.overflow = this.savedBodyOverflow
+      this.savedBodyOverflow = null
+    }
+  }
+
+  private manageFocus(changed: PropertyValues): void {
+    if (!changed.has('open') || !this.open) return
+    requestAnimationFrame(() => {
+      const state = this.controller?.state
+      if (!state) return
+      if (!allReady(state.stages)) {
+        // Loading panel — move focus to its root so screen readers announce
+        // the live region.
+        this.loadingPanelEl?.focus()
+        return
+      }
+      if (this.mobile) {
+        // On phones, focus the close button so the keyboard doesn't pop up
+        // immediately (the visitor may want to read the greeting first).
+        this.closeBtnEl?.focus()
+      } else {
+        this.inputEl?.focus()
+      }
+    })
   }
 
   private ensureScrollObservers(): void {
@@ -181,15 +308,23 @@ export class AnswerlayChat extends LitElement {
   }
 
   private onModeSwitch = (mode: 'mobile' | 'desktop'): void => {
-    this.modeOverride = mode
+    // Don't write through to the `modeOverride` reactive property — that
+    // attribute is reserved for the host page driving mode externally.
+    // Clicking the in-panel toggle is a separate user action; calling
+    // controller.setMode keeps the toggle visible for subsequent clicks.
     this.controller.setMode(mode)
+    this.requestUpdate()
+  }
+
+  private onRetry = (): void => {
+    void this.controller.retryFailedStages()
   }
 
   private renderLauncher() {
+    const cfg = this.controller.state.config?.config
     const positionClass =
-      this.controller.state.config?.config.position === 'bottom-left'
-        ? 'position-left'
-        : 'position-right'
+      cfg?.position === 'bottom-left' ? 'position-left' : 'position-right'
+    const tooltip = cfg?.launcherTooltip || 'Chat with us'
     return html`
       <button
         class="launcher ${positionClass}"
@@ -198,7 +333,8 @@ export class AnswerlayChat extends LitElement {
         aria-expanded=${this.open ? 'true' : 'false'}
         @click=${this.toggleOpen}
       >
-        ${this.open ? closeIcon : chatIcon}
+        ${chatIcon}
+        <span class="launcher-tip" aria-hidden="true">${tooltip}</span>
       </button>
     `
   }
@@ -229,10 +365,66 @@ export class AnswerlayChat extends LitElement {
     `
   }
 
+  private renderHeader() {
+    const state = this.controller.state
+    const cfg = state.config?.config
+    const statusLabel = cfg?.statusLabel || 'Ready to help'
+    return html`
+      <header class="header">
+        <span class="header-avatar" aria-hidden="true">${userIcon}</span>
+        <div class="head-text">
+          <h3 class="head-title">${cfg?.name ?? 'Chat'}</h3>
+          <div class="head-status">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span>${statusLabel}</span>
+          </div>
+        </div>
+        ${this.renderModeToggle()}
+        ${!this.preview
+          ? html`
+              <button
+                class="close-btn"
+                type="button"
+                aria-label="Close chat"
+                @click=${this.toggleOpen}
+              >
+                ${closeIcon}
+              </button>
+            `
+          : nothing}
+      </header>
+    `
+  }
+
+  private metaForMessage(m: ChatMessage) {
+    if (!this.preview) return nothing
+    if (m.role !== 'assistant') return nothing
+    if (!m.source) return nothing
+    if (m.source === 'scenario') {
+      return html`<div class="message-meta meta-scenario">
+        ${checkIcon}
+        <span>Matched scenario</span>
+      </div>`
+    }
+    if (m.source === 'llm') {
+      return html`<div class="message-meta meta-ai">
+        ${sparkleIcon}
+        <span>AI from your docs</span>
+      </div>`
+    }
+    return html`<div class="message-meta meta-fallback">
+      ${alertIcon}
+      <span>No match · fallback</span>
+    </div>`
+  }
+
   private renderMessage(m: ChatMessage) {
     const cls = `message ${m.role}${m.status === 'error' ? ' error' : ''}`
+    const showTimestamp =
+      m.role === 'assistant' && m.status !== 'streaming' && m.createdAt !== undefined
     return html`
       <li class=${cls}>
+        ${this.metaForMessage(m)}
         <div class="bubble">
           ${m.role === 'assistant' && m.status === 'streaming' && !m.content
             ? html`<span class="typing"
@@ -244,39 +436,111 @@ export class AnswerlayChat extends LitElement {
                   .animate=${m.status === 'streaming' || m.source !== 'fallback'}
                 ></answerlay-typewriter>`
               : html`<span>${m.content}</span>`}
-          ${m.quickReplies && m.quickReplies.length > 0
-            ? html`
-                <div class="quick-replies">
-                  ${m.quickReplies.map(
-                    (qr) => html`
-                      <button
-                        class="quick-reply"
-                        type="button"
-                        @click=${() => this.onQuickReply(qr.label)}
-                      >
-                        ${qr.label}
-                      </button>
-                    `,
-                  )}
-                </div>
-              `
-            : nothing}
         </div>
+        ${m.quickReplies && m.quickReplies.length > 0
+          ? html`
+              <div class="quick-replies" role="group" aria-label="Suggested questions">
+                ${m.quickReplies.map(
+                  (qr) => html`
+                    <button
+                      class="quick-reply"
+                      type="button"
+                      @click=${() => this.onQuickReply(qr.label)}
+                    >
+                      ${qr.label}
+                    </button>
+                  `,
+                )}
+              </div>
+            `
+          : nothing}
+        ${showTimestamp
+          ? html`<time class="message-time">${formatRelativeTime(m.createdAt!)}</time>`
+          : nothing}
       </li>
     `
   }
 
-  private renderLoader() {
-    const p = this.controller.state.loadingProgress
-    if (this.controller.state.status !== 'engine-loading' || !p) return nothing
-    const pct = typeof p.progress === 'number' ? Math.round(p.progress * 100) : null
+  private renderCredit() {
+    const cfg = this.controller.state.config?.config
+    if (cfg?.hideCredit) return nothing
     return html`
-      <div class="loader" role="status" aria-live="polite">
-        <span>Loading model${p.file ? ` · ${p.file}` : ''}…</span>
-        <div class="loader-bar">
-          <div class="loader-fill" style=${`width: ${pct ?? 0}%`}></div>
+      <div class="credit">
+        <span class="credit-soft">Powered by Answerlay</span>
+        <span class="credit-dot" aria-hidden="true">·</span>
+        <span class="credit-strong">Runs locally in your browser</span>
+      </div>
+    `
+  }
+
+  private renderLoadingPanel() {
+    const state = this.controller.state
+    const cfg = state.config?.config
+    const positionClass =
+      cfg?.position === 'bottom-left' ? 'position-left' : 'position-right'
+    const errored = hasStageError(state.stages)
+    const progress = aggregateProgress(state.stages)
+    const pct = Math.max(0, Math.min(100, Math.round(progress * 100)))
+    // Indeterminate sweep until we have any meaningful progress to show.
+    const indeterminate = !errored && progress < 0.02
+    const headline = errored
+      ? 'Something went wrong'
+      : LOADING_HEADLINES[this.loadingPhraseIndex % LOADING_HEADLINES.length]
+    const subline = errored
+      ? 'We couldn’t finish loading. Try again?'
+      : LOADING_SUBLINES[this.loadingPhraseIndex % LOADING_SUBLINES.length]
+    return html`
+      <div
+        class="panel ${positionClass}"
+        role="dialog"
+        aria-modal=${this.mobile ? 'true' : 'false'}
+        aria-label=${cfg?.name ?? 'Chat'}
+      >
+        ${this.renderHeader()}
+        <div
+          class="loading-panel"
+          role="status"
+          aria-live="polite"
+          tabindex="-1"
+        >
+          <span class="loading-logo" aria-hidden="true"></span>
+          <div class="loading-copy">
+            <h3
+              class=${
+                this.loadingPhraseSwapping
+                  ? 'loading-headline is-swapping'
+                  : 'loading-headline'
+              }
+            >
+              ${headline}
+            </h3>
+            <p class="loading-subline">${subline}</p>
+          </div>
+          <div
+            class=${
+              indeterminate
+                ? 'loading-bar is-indeterminate'
+                : 'loading-bar'
+            }
+            aria-hidden="true"
+          >
+            <span
+              class="loading-bar-fill"
+              style=${indeterminate ? '' : `width: ${pct}%`}
+            ></span>
+          </div>
+          ${errored
+            ? html`
+                <button
+                  type="button"
+                  class="loading-retry"
+                  @click=${this.onRetry}
+                >
+                  Retry
+                </button>
+              `
+            : nothing}
         </div>
-        ${pct !== null ? html`<span>${pct}%</span>` : nothing}
       </div>
     `
   }
@@ -288,35 +552,22 @@ export class AnswerlayChat extends LitElement {
       cfg?.position === 'bottom-left' ? 'position-left' : 'position-right'
 
     const isBusy = state.status === 'thinking' || state.status === 'streaming'
+    const inputDisabled: boolean = isBusy || state.status === 'error'
 
     return html`
-      <div class="panel ${positionClass}" role="dialog" aria-label="${cfg?.name ?? 'Chat'}">
-        <header class="header">
-          <h3>${cfg?.name ?? 'Chat'}</h3>
-          ${this.renderModeToggle()}
-          ${!this.preview
-            ? html`
-                <button
-                  class="close-btn"
-                  type="button"
-                  aria-label="Close chat"
-                  @click=${this.toggleOpen}
-                >
-                  ${closeIcon}
-                </button>
-              `
-            : nothing}
-        </header>
+      <div
+        class="panel ${positionClass}"
+        role="dialog"
+        aria-modal=${this.mobile ? 'true' : 'false'}
+        aria-label=${cfg?.name ?? 'Chat'}
+      >
+        ${this.renderHeader()}
 
         <ol class="messages" role="log" aria-live="polite">
           ${state.messages.map((m) => this.renderMessage(m))}
         </ol>
 
-        ${this.renderLoader()}
         ${state.errorMessage && state.status === 'error'
-          ? html`<div class="error-banner" role="alert">${state.errorMessage}</div>`
-          : nothing}
-        ${state.errorMessage && state.status === 'config-error'
           ? html`<div class="error-banner" role="alert">${state.errorMessage}</div>`
           : nothing}
 
@@ -327,7 +578,7 @@ export class AnswerlayChat extends LitElement {
             placeholder="Ask a question…"
             aria-label="Message"
             .value=${this.input}
-            ?disabled=${isBusy || state.status === 'config-loading' || state.status === 'config-error'}
+            ?disabled=${inputDisabled}
             @input=${(e: Event) => (this.input = (e.target as HTMLTextAreaElement).value)}
             @keydown=${this.onInputKey}
           ></textarea>
@@ -340,15 +591,23 @@ export class AnswerlayChat extends LitElement {
             ${sendIcon}
           </button>
         </form>
+
+        ${this.renderCredit()}
       </div>
     `
   }
 
   override render() {
+    const state = this.controller.state
+    const ready = allReady(state.stages)
     return html`
       <div class="root">
         ${this.renderLauncher()}
-        ${this.open || this.preview ? this.renderPanel() : nothing}
+        ${this.open || this.preview
+          ? ready
+            ? this.renderPanel()
+            : this.renderLoadingPanel()
+          : nothing}
       </div>
     `
   }

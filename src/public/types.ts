@@ -19,6 +19,12 @@ export interface AssistantConfig {
   language?: string
   // Scenario IDs shown as quick-reply buttons under the greeting (max 8).
   greetingQuickReplyIds?: string[]
+  // Optional, additive fields used by the widget chrome. Existing
+  // configs without these fields still render correctly.
+  launcherTooltip?: string
+  statusLabel?: string
+  // Hide the "Powered by Answerlay" line at the bottom of the panel.
+  hideCredit?: boolean
 }
 
 export const DEFAULT_CONFIG: AssistantConfig = {

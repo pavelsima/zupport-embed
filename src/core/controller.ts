@@ -16,12 +16,16 @@ import {
 import type { VectorsPayload } from '../rag/types'
 import { loadConfig, type ResolvedConfig } from './config-loader'
 import {
+  allReady,
   initialState,
+  makeInitialStages,
   newId,
   resolveGreetingQuickReplies,
   scenarioToQuickReply,
   type ChatMessage,
   type ChatState,
+  type LoadStage,
+  type StageKey,
   type Status,
 } from './store'
 
@@ -44,7 +48,7 @@ export interface ControllerOptions {
 }
 
 export class ChatController implements ReactiveController {
-  state: ChatState = { ...initialState }
+  state: ChatState = { ...initialState, stages: makeInitialStages() }
 
   private host: ReactiveControllerHost
   private opts: ControllerOptions
@@ -52,6 +56,7 @@ export class ChatController implements ReactiveController {
   private enginePromise: Promise<Engine | null> | null = null
   private scenariosEngine: ScenariosEngine | null = null
   private embedder: QueryEmbedder | null = null
+  private embedderPromise: Promise<void> | null = null
   private scenariosPayload: ScenariosPayload | null = null
   private vectorsPayload: VectorsPayload | null = null
   private greetingMessageId: string | null = null
@@ -86,8 +91,38 @@ export class ChatController implements ReactiveController {
     this.setState({ status, errorMessage })
   }
 
+  // Patch a single stage. If the patch flips a stage to `done`/`skipped`,
+  // and every stage is now resolved, also flip overall status to `ready`.
+  // If a non-skipped stage moves out of `done`, fall back to `loading`.
+  // Stage transitions are logged to the console so developers can see the
+  // pipeline progress in DevTools — end users only see the friendly
+  // rotating copy in the loading panel.
+  private setStage(key: StageKey, patch: Partial<LoadStage>): void {
+    const prev = this.state.stages[key]
+    const next = { ...prev, ...patch }
+    const nextStages = { ...this.state.stages, [key]: next }
+    if (next.status !== prev.status) {
+      console.info(`[answerlay] ${key}: ${prev.status} → ${next.status}`, {
+        progress: next.progress,
+        file: next.file,
+        error: next.error,
+      })
+    }
+    const nextStatus: Status =
+      this.state.status === 'thinking' ||
+      this.state.status === 'streaming' ||
+      this.state.status === 'error'
+        ? this.state.status
+        : allReady(nextStages)
+          ? 'ready'
+          : 'loading'
+    this.setState({ stages: nextStages, status: nextStatus })
+  }
+
   private pushMessage(msg: ChatMessage): void {
-    this.setState({ messages: [...this.state.messages, msg] })
+    const stamped: ChatMessage =
+      msg.createdAt === undefined ? { ...msg, createdAt: Date.now() } : msg
+    this.setState({ messages: [...this.state.messages, stamped] })
   }
 
   private updateMessage(id: string, patch: Partial<ChatMessage>): void {
@@ -141,11 +176,21 @@ export class ChatController implements ReactiveController {
 
   setOpen(open: boolean): void {
     this.setState({ open })
+    // Tier D doesn't pre-warm the embedder during boot (mobile cellular
+    // sensitivity). Trigger it now that the user has explicitly opened the
+    // panel. The loading UI will show progress until ready.
+    if (
+      open &&
+      this.state.tier?.tier === 'D' &&
+      this.state.stages.embedder.status === 'pending'
+    ) {
+      void this.preWarmEmbedder()
+    }
   }
 
   // Re-pull config, scenarios, and vectors. Used by the dashboard test panel
-  // after a publish (and by its Reset button). Streaming continues to play
-  // out — only the underlying RAG state is swapped.
+  // after a publish (and by its Reset button). The loaded models stay in
+  // memory — refresh only touches data stages.
   async refresh(opts: { clearMessages?: boolean; bypassCache?: boolean } = {}): Promise<void> {
     if (opts.bypassCache) {
       try {
@@ -157,6 +202,7 @@ export class ChatController implements ReactiveController {
     const prevDisable = this.opts.disableCache
     if (opts.bypassCache) this.opts.disableCache = true
     try {
+      this.setStage('config', { status: 'downloading', progress: 0 })
       const resolved = await loadConfig({
         assistantId: this.opts.assistantId,
         configUrl: this.opts.configUrl,
@@ -164,55 +210,64 @@ export class ChatController implements ReactiveController {
         inlineConfig: this.opts.inlineConfig,
       })
       this.setState({ config: resolved })
-      await this.fetchScenarios()
+      this.setStage('config', { status: 'done', progress: 1 })
+
+      await Promise.allSettled([
+        this.runScenariosStage(),
+        this.runVectorsStage(),
+      ])
       this.updateGreetingQuickReplies()
-      this.vectorsPayload = null
-      await this.fetchVectors()
     } catch (err) {
-      this.opts.emit('answerlay-error', {
-        phase: 'config',
-        error: err instanceof Error ? err.message : String(err),
-      })
+      const message = err instanceof Error ? err.message : String(err)
+      this.setStage('config', { status: 'error', error: message })
+      this.opts.emit('answerlay-error', { phase: 'config', error: message })
     } finally {
       this.opts.disableCache = prevDisable
     }
     if (opts.clearMessages) {
       this.greetingMessageId = null
+      // Drop the existing conversation first; seedGreeting pushes one new
+      // message on top of an empty list.
+      this.setState({ messages: [], errorMessage: null })
       const greeting = this.state.config?.config.greeting
       if (greeting) this.seedGreeting(greeting)
-      else this.setState({ messages: [] })
-      this.setState({ errorMessage: null })
       this.updateGreetingQuickReplies()
-      this.setStatus('ready')
     }
   }
 
   /**
-   * Boot sequence:
-   *   1. Fetch config.json (or use inline config).
-   *   2. Seed greeting message.
-   *   3. Probe device tier.
-   *   4. Fetch scenarios.json (always, used for short-circuit on Tiers A/B/C
-   *      and as the only response source on Tier D).
-   *   5. Set status to ready. Engines are loaded lazily on first send.
+   * Boot sequence (new orchestration):
+   *   1. Mark `config` downloading → load config.json → done. On failure,
+   *      mark `config` error and abort (other stages stay pending).
+   *   2. Seed greeting from config.
+   *   3. Probe device tier. Mark `embedder`/`llm` as skipped where
+   *      appropriate (tier D: skip LLM; mobile launcher click later
+   *      triggers the embedder).
+   *   4. Kick off all remaining stages in parallel via Promise.allSettled
+   *      so one failure can't tank the others.
+   *   5. Status transitions to `ready` automatically when every required
+   *      stage resolves to done/skipped (handled inside setStage).
    */
   private async boot(): Promise<void> {
-    this.setStatus('config-loading')
+    this.setStage('config', { status: 'downloading', progress: 0 })
+    let resolved: ResolvedConfig
     try {
-      const resolved = await loadConfig({
+      resolved = await loadConfig({
         assistantId: this.opts.assistantId,
         configUrl: this.opts.configUrl,
         configBaseUrl: this.opts.configBaseUrl,
         inlineConfig: this.opts.inlineConfig,
       })
       this.setState({ config: resolved })
+      this.setStage('config', { status: 'done', progress: 1 })
       if (resolved.config.greeting) {
         this.seedGreeting(resolved.config.greeting)
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
+      this.setStage('config', { status: 'error', error: message })
       this.opts.emit('answerlay-error', { phase: 'config', error: message })
-      this.setStatus('config-error', message)
+      this.setStatus('error', message)
       return
     }
 
@@ -222,38 +277,43 @@ export class ChatController implements ReactiveController {
     })
     this.setState({ tier })
 
-    await this.fetchScenarios()
-    this.updateGreetingQuickReplies()
-    this.setStatus('ready')
+    // Mark stages skipped/pending based on tier.
+    if (tier.tier === 'D') {
+      // Mobile / scenarios-only: no LLM. The embedder downloads on launcher
+      // click (cellular-sensitive devices stay quiet until the visitor
+      // explicitly engages the widget).
+      this.setStage('llm', { status: 'skipped' })
+      // Vectors aren't strictly needed for tier-D scenario matching, but the
+      // user spec is to load them eagerly so the data stays fresh.
+    }
+
+    // Vectors are eager-loaded on all tiers. Scenarios payload triggers a
+    // greeting-quick-replies refresh once it lands. Embedder + LLM are tier-
+    // gated.
+    const tasks: Promise<unknown>[] = [
+      this.runScenariosStage().then(() => this.updateGreetingQuickReplies()),
+      this.runVectorsStage(),
+    ]
+    if (tier.tier !== 'D') {
+      tasks.push(this.preWarmEmbedder())
+      tasks.push(this.preWarmEngine())
+    }
+
+    // Emit ready as soon as the tier is known so listeners that care about
+    // "openable" can react. The actual chat-ready transition is conveyed
+    // through stage progression + the `ready` status flip in setStage.
     this.opts.emit('answerlay-ready', { tier: tier.tier, mode: tier.mode })
 
-    // Pre-warm the engine immediately so the model is ready on the first
-    // message instead of blocking it. Tier D (mobile/scenarios-only) has no
-    // LLM to load.
-    if (tier.tier !== 'D') {
-      void this.ensureEngine()
-    }
+    await Promise.allSettled(tasks)
   }
 
-  setMode(mode: 'mobile' | 'desktop'): void {
-    if (this.state.tier?.mode === mode) return
-    this.engine?.destroy()
-    this.engine = null
-    this.enginePromise = null
-    this.opts.modeOverride = mode
-    this.setState({ tier: null })
-    void selectTier({
-      modeOverride: mode,
-      tierOverride: this.opts.tierOverride,
-    }).then((tier) => {
-      this.setState({ tier })
-      this.opts.emit('answerlay-tier-change', { tier: tier.tier, reason: 'mode-changed' })
-    })
-  }
-
-  private async fetchScenarios(): Promise<void> {
+  private async runScenariosStage(): Promise<void> {
     const url = this.state.config?.scenariosPublicUrl
-    if (!url) return
+    if (!url) {
+      this.setStage('scenarios', { status: 'skipped' })
+      return
+    }
+    this.setStage('scenarios', { status: 'downloading', progress: 0 })
     try {
       const res = await fetch(url, { cache: 'no-cache' })
       if (!res.ok) throw new Error(`scenarios.json: HTTP ${res.status}`)
@@ -272,21 +332,28 @@ export class ChatController implements ReactiveController {
         (text) => this.ensureEmbedder().embed(text),
         cfg?.scenarioMatchThreshold,
       )
+      this.setStage('scenarios', { status: 'done', progress: 1 })
     } catch (err) {
-      this.opts.emit('answerlay-error', {
-        phase: 'scenarios',
-        error: err instanceof Error ? err.message : String(err),
-      })
+      const message = err instanceof Error ? err.message : String(err)
+      this.setStage('scenarios', { status: 'error', error: message })
+      this.opts.emit('answerlay-error', { phase: 'scenarios', error: message })
     }
   }
 
-  private async fetchVectors(): Promise<void> {
+  private async runVectorsStage(): Promise<void> {
     const url = this.state.config?.vectorsPublicUrl
-    if (!url) return
+    if (!url) {
+      this.setStage('vectors', { status: 'skipped' })
+      return
+    }
 
     if (!this.opts.disableCache) {
       const cached = await getCachedVectors(this.opts.assistantId, 'e5s')
       if (cached) {
+        // A 1-frame `mounting` micro-state stops the loading panel from
+        // flickering when vectors come straight from IDB.
+        this.setStage('vectors', { status: 'mounting', progress: 1 })
+        await new Promise((r) => requestAnimationFrame(() => r(undefined)))
         this.vectorsPayload = {
           model: 'e5-small',
           dim: cached.chunks[0]?.embedding.length ?? 384,
@@ -294,22 +361,94 @@ export class ChatController implements ReactiveController {
           chunkCount: cached.chunks.length,
           chunks: cached.chunks,
         }
+        this.setStage('vectors', { status: 'done', progress: 1 })
         return
       }
     }
 
-    const res = await fetch(url, { cache: 'no-cache' })
-    if (!res.ok) throw new Error(`vectors.json: HTTP ${res.status}`)
-    const payload = (await res.json()) as VectorsPayload
-    this.vectorsPayload = payload
+    this.setStage('vectors', { status: 'downloading', progress: 0 })
+    try {
+      const res = await fetch(url, { cache: 'no-cache' })
+      if (!res.ok) throw new Error(`vectors.json: HTTP ${res.status}`)
+      const payload = (await res.json()) as VectorsPayload
+      this.vectorsPayload = payload
 
-    if (!this.opts.disableCache) {
-      void setCachedVectors(this.opts.assistantId, 'e5s', {
-        loadedAt: Date.now(),
-        builtAt: payload.builtAt,
-        chunks: payload.chunks,
-      })
+      if (!this.opts.disableCache) {
+        void setCachedVectors(this.opts.assistantId, 'e5s', {
+          loadedAt: Date.now(),
+          builtAt: payload.builtAt,
+          chunks: payload.chunks,
+        })
+      }
+      this.setStage('vectors', { status: 'done', progress: 1 })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      this.setStage('vectors', { status: 'error', error: message })
+      this.opts.emit('answerlay-error', { phase: 'vectors', error: message })
     }
+  }
+
+  private preWarmEmbedder(): Promise<void> {
+    if (this.embedderPromise) return this.embedderPromise
+    this.setStage('embedder', { status: 'downloading', progress: 0 })
+    this.embedderPromise = this.ensureEmbedder()
+      .preWarm((p) => {
+        this.setStage('embedder', {
+          status: p.status === 'ready' ? 'mounting' : 'downloading',
+          file: p.file,
+          progress: typeof p.progress === 'number' ? p.progress : undefined,
+        })
+      })
+      .then(() => {
+        this.setStage('embedder', { status: 'done', progress: 1 })
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : String(err)
+        this.setStage('embedder', { status: 'error', error: message })
+        this.opts.emit('answerlay-error', { phase: 'engine', error: message })
+        // Allow a future retry — clear the cached promise so the next call
+        // re-attempts initialisation.
+        this.embedderPromise = null
+        throw err
+      })
+    return this.embedderPromise
+  }
+
+  private async preWarmEngine(): Promise<void> {
+    try {
+      await this.ensureEngine()
+    } catch {
+      // Errors are surfaced into the stage map by _initEngine.
+    }
+  }
+
+  setMode(mode: 'mobile' | 'desktop'): void {
+    if (this.state.tier?.mode === mode) return
+    this.engine?.destroy()
+    this.engine = null
+    this.enginePromise = null
+    this.opts.modeOverride = mode
+    // Reset the LLM stage. Embedder + scenarios + vectors stay loaded.
+    if (mode === 'mobile') {
+      this.setStage('llm', { status: 'skipped' })
+    } else {
+      this.setStage('llm', { status: 'pending' })
+    }
+    this.setState({ tier: null })
+    void selectTier({
+      modeOverride: mode,
+      tierOverride: this.opts.tierOverride,
+    }).then((tier) => {
+      this.setState({ tier })
+      this.opts.emit('answerlay-tier-change', { tier: tier.tier, reason: 'mode-changed' })
+      if (tier.tier !== 'D') {
+        // Re-trigger embedder + LLM pre-warm if they aren't already done.
+        if (this.state.stages.embedder.status !== 'done') {
+          void this.preWarmEmbedder()
+        }
+        void this.preWarmEngine()
+      }
+    })
   }
 
   private ensureEmbedder(): QueryEmbedder {
@@ -330,9 +469,14 @@ export class ChatController implements ReactiveController {
     if (!tier) return null
     if (tier.tier === 'D') return null
 
-    this.setStatus('engine-loading')
+    this.setStage('llm', { status: 'downloading', progress: 0 })
+
     const onProgress = (p: { file?: string; progress?: number }) => {
-      this.setState({ loadingProgress: { file: p.file, progress: p.progress } })
+      this.setStage('llm', {
+        status: 'downloading',
+        file: p.file,
+        progress: typeof p.progress === 'number' ? p.progress : undefined,
+      })
     }
 
     const tryTier = async (t: Tier): Promise<Engine | null> => {
@@ -368,28 +512,36 @@ export class ChatController implements ReactiveController {
           this.setState({ tier: updated })
           this.opts.emit('answerlay-tier-change', { tier: tryFor, reason: 'engine-init-failed' })
         }
-        try {
-          await this.fetchVectors()
-        } catch (err) {
-          this.opts.emit('answerlay-error', {
-            phase: 'vectors',
-            error: err instanceof Error ? err.message : String(err),
-          })
-        }
-        this.setStatus('ready')
+        this.setStage('llm', { status: 'done', progress: 1 })
         return engine
       }
       cur = stepDownTier(cur)
     }
 
-    // Fell all the way through — no LLM, scenarios-only. We only reach this
-    // when the original tier was A/B (D returns early above), so always
-    // notify the host of the downgrade.
+    // Every desktop tier failed → silently downgrade to D. The widget keeps
+    // working on scenarios + fallback, the loading screen flips to ready.
     const updated: TierSelection = { ...tier, tier: 'D', reason: 'engine-init-failed' }
     this.setState({ tier: updated })
     this.opts.emit('answerlay-tier-change', { tier: 'D', reason: 'engine-init-failed' })
-    this.setStatus('ready')
+    this.setStage('llm', { status: 'skipped' })
     return null
+  }
+
+  // Public API used by the answerlay-chat element when the user dismisses
+  // a stage error and asks to retry. Re-runs whichever stages are in error.
+  async retryFailedStages(): Promise<void> {
+    const stages = this.state.stages
+    const tasks: Promise<unknown>[] = []
+    if (stages.config.status === 'error') {
+      // Config failures abort the boot; re-run from the top.
+      await this.refresh()
+      return
+    }
+    if (stages.scenarios.status === 'error') tasks.push(this.runScenariosStage())
+    if (stages.vectors.status === 'error') tasks.push(this.runVectorsStage())
+    if (stages.embedder.status === 'error') tasks.push(this.preWarmEmbedder())
+    if (stages.llm.status === 'error') tasks.push(this.preWarmEngine())
+    await Promise.allSettled(tasks)
   }
 
   async send(text: string): Promise<void> {
@@ -440,7 +592,8 @@ export class ChatController implements ReactiveController {
       }
     }
 
-    // Run the LLM. Initialise engine + vectors lazily.
+    // Run the LLM. The engine is normally pre-warmed at boot, but if
+    // pre-warm failed or is mid-flight, fall back to ensureEngine here.
     const engine = await this.ensureEngine()
     if (!engine) {
       // Fell to scenarios-only at runtime — re-route.
@@ -533,5 +686,4 @@ export class ChatController implements ReactiveController {
     })
     this.setStatus('ready')
   }
-
 }
