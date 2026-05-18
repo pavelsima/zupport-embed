@@ -3,7 +3,7 @@ import type { Chunk } from './types'
 const DB_NAME = 'answerlay-embed'
 const VECTORS_STORE = 'vectors'
 const DB_VERSION = 1
-const TTL_MS = 24 * 60 * 60 * 1000
+const TTL_MS = 60 * 60 * 1000
 
 export type EmbeddingModel = 'e5s'
 

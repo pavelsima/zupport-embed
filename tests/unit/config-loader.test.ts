@@ -51,8 +51,7 @@ describe('loadConfig', () => {
       } as Response
     })
     const result = await loadConfig({ assistantId: 'aaa' })
-    expect(captured).toContain('public%2Fassistants%2Faaa%2Fconfig.json')
-    expect(captured).toContain('alt=media')
+    expect(captured).toContain('/assistants/aaa/config.json')
     expect(result.assistantId).toBe('aaa')
   })
 

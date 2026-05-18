@@ -26,7 +26,7 @@ export const DEFAULT_CONFIG: AssistantConfig = {
   greeting: 'Hi! How can I help?',
   brandColor: '#1D9E75',
   position: 'bottom-right',
-  topK: 4,
+  topK: 5,
   maxTokens: 256,
   scenarioMatchThreshold: 0.72,
 }
