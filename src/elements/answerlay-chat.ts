@@ -21,6 +21,11 @@ import {
   userIcon,
 } from './icons'
 import { formatRelativeTime } from '../core/store'
+import {
+  BUBBLE_AUTO_HIDE_MS,
+  MOBILE_BUBBLE_DELAY_MS,
+  shouldShowGreetingBubble,
+} from '../core/greeting-bubble'
 
 // Friendly status copy rotated in the loading panel. Avoids exposing
 // technical pipeline detail (model names, vector DBs, etc.) — those are
@@ -40,6 +45,27 @@ const LOADING_SUBLINES = [
   'Getting everything in place…',
   'Doing a little bit of magic…',
 ]
+
+const BUBBLE_DISMISSED_KEY = (assistantId: string) =>
+  `answerlay:greeting-bubble-dismissed:${assistantId}`
+
+function readBubbleDismissed(assistantId: string): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.sessionStorage.getItem(BUBBLE_DISMISSED_KEY(assistantId)) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeBubbleDismissed(assistantId: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(BUBBLE_DISMISSED_KEY(assistantId), '1')
+  } catch {
+    // best-effort — private mode / storage quota
+  }
+}
 
 @customElement('answerlay-chat')
 export class AnswerlayChat extends LitElement {
@@ -82,6 +108,10 @@ export class AnswerlayChat extends LitElement {
   @state() private input = ''
   @state() private loadingPhraseIndex = 0
   @state() private loadingPhraseSwapping = false
+  @state() private bubbleVisible = false
+  // Latch — once we've shown the bubble in this widget lifecycle, don't
+  // re-show it even if status briefly drops out of `ready` (defensive).
+  @state() private bubbleAlreadyShown = false
 
   @query('textarea.input') private inputEl?: HTMLTextAreaElement
   @query('.messages') private messagesEl?: HTMLElement
@@ -89,6 +119,10 @@ export class AnswerlayChat extends LitElement {
   @query('.loading-panel') private loadingPanelEl?: HTMLElement
 
   private loadingPhraseTimer: number | null = null
+  private bubbleMobileTimer: number | null = null
+  private bubbleAutoHideTimer: number | null = null
+  private configLoadedAt: number | null = null
+  private bubbleDismissed = false
 
   private controller!: ChatController
   private followStream = true
@@ -101,6 +135,9 @@ export class AnswerlayChat extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback()
+    if (this.assistantId) {
+      this.bubbleDismissed = readBubbleDismissed(this.assistantId)
+    }
     this.controller = new ChatController(this, {
       assistantId: this.assistantId,
       configUrl: this.configUrl,
@@ -159,6 +196,55 @@ export class AnswerlayChat extends LitElement {
     this.manageFocus(changed)
     this.ensureScrollObservers()
     this.maybeAutoScroll()
+    this.evaluateGreetingBubble()
+  }
+
+  private evaluateGreetingBubble(): void {
+    const state = this.controller?.state
+    if (!state) return
+    const cfg = state.config?.config
+    const enabled = cfg?.showGreetingBubble === true
+
+    if (cfg && this.configLoadedAt === null) {
+      this.configLoadedAt = Date.now()
+      // Mobile branch needs a delayed re-evaluation. Desktop branch reacts
+      // through Lit's normal updated() cycle when `status` flips to `ready`.
+      if (
+        enabled &&
+        this.bubbleMobileTimer === null &&
+        !this.bubbleDismissed &&
+        !this.bubbleAlreadyShown
+      ) {
+        this.bubbleMobileTimer = window.setTimeout(() => {
+          this.bubbleMobileTimer = null
+          this.requestUpdate()
+        }, MOBILE_BUBBLE_DELAY_MS)
+      }
+    }
+
+    const shouldShow = shouldShowGreetingBubble({
+      enabled,
+      status: state.status,
+      tierMode: state.tier?.mode ?? null,
+      configLoadedAt: this.configLoadedAt,
+      now: Date.now(),
+      open: this.open,
+      dismissed: this.bubbleDismissed,
+      alreadyShown: this.bubbleAlreadyShown,
+    })
+
+    if (shouldShow && !this.bubbleVisible) {
+      this.bubbleVisible = true
+      this.bubbleAlreadyShown = true
+      if (this.assistantId) writeBubbleDismissed(this.assistantId)
+      this.bubbleDismissed = true
+      if (this.bubbleAutoHideTimer === null) {
+        this.bubbleAutoHideTimer = window.setTimeout(() => {
+          this.bubbleAutoHideTimer = null
+          this.bubbleVisible = false
+        }, BUBBLE_AUTO_HIDE_MS)
+      }
+    }
   }
 
   override disconnectedCallback(): void {
@@ -167,6 +253,14 @@ export class AnswerlayChat extends LitElement {
     this.observedMessagesEl = null
     this.releaseBodyScrollLock()
     this.stopLoadingPhraseRotation()
+    if (this.bubbleMobileTimer !== null) {
+      window.clearTimeout(this.bubbleMobileTimer)
+      this.bubbleMobileTimer = null
+    }
+    if (this.bubbleAutoHideTimer !== null) {
+      window.clearTimeout(this.bubbleAutoHideTimer)
+      this.bubbleAutoHideTimer = null
+    }
     document.removeEventListener('keydown', this.onDocKey)
     super.disconnectedCallback()
   }
@@ -275,8 +369,18 @@ export class AnswerlayChat extends LitElement {
   }
 
   private toggleOpen = (): void => {
+    if (this.bubbleVisible) this.dismissGreetingBubble()
     this.open = !this.open
     this.controller.setOpen(this.open)
+  }
+
+  private dismissGreetingBubble = (e?: Event): void => {
+    e?.stopPropagation()
+    this.bubbleVisible = false
+    if (this.bubbleAutoHideTimer !== null) {
+      window.clearTimeout(this.bubbleAutoHideTimer)
+      this.bubbleAutoHideTimer = null
+    }
   }
 
   // Public API for the dashboard test panel: re-fetch config/scenarios/vectors
@@ -326,6 +430,7 @@ export class AnswerlayChat extends LitElement {
       cfg?.position === 'bottom-left' ? 'position-left' : 'position-right'
     const tooltip = cfg?.launcherTooltip || 'Chat with us'
     return html`
+      ${this.renderGreetingBubble(positionClass)}
       <button
         class="launcher ${positionClass}"
         type="button"
@@ -336,6 +441,26 @@ export class AnswerlayChat extends LitElement {
         ${chatIcon}
         <span class="launcher-tip" aria-hidden="true">${tooltip}</span>
       </button>
+    `
+  }
+
+  private renderGreetingBubble(positionClass: string) {
+    if (!this.bubbleVisible) return nothing
+    const cfg = this.controller.state.config?.config
+    const greeting = cfg?.greeting ?? ''
+    if (!greeting) return nothing
+    return html`
+      <aside class="greeting-bubble ${positionClass}" role="status" aria-live="polite">
+        <span class="greeting-bubble-text">${greeting}</span>
+        <button
+          type="button"
+          class="greeting-bubble-close"
+          aria-label="Dismiss greeting"
+          @click=${this.dismissGreetingBubble}
+        >
+          ${closeIcon}
+        </button>
+      </aside>
     `
   }
 

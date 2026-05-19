@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.6.0
+
+Opt-in greeting bubble above the launcher.
+
+- New optional `AssistantConfig.showGreetingBubble` boolean (default: off). When enabled, the widget pops a small bubble with the greeting text above the launcher icon.
+- Desktop: bubble appears the moment every model stage flips to `ready`/`skipped`. Mobile (tier D): bubble appears 5 s after `config.json` loads, since loading is deferred until the visitor opens the chat.
+- Bubble auto-hides after 8 s; visitors can dismiss it with the × button; clicking the launcher also hides it. Once shown in a tab session, it does not reappear (sessionStorage per `assistantId`).
+- New pure helper `shouldShowGreetingBubble()` in `src/core/greeting-bubble.ts` encodes the trigger truth table (covered by 11 unit tests).
+
 ## 0.5.0
 
 Warm-editorial visual refactor and parallel load orchestration.

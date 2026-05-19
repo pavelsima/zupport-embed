@@ -194,6 +194,98 @@ export const chatStyles = css`
     transform: translateY(-50%) translateX(0);
   }
 
+  /* Auto-popup greeting bubble — sits above the launcher icon.
+     Positioned at host bottom 24px + launcher height 56px + 12px gap = 92px. */
+  .greeting-bubble {
+    pointer-events: auto;
+    position: absolute;
+    bottom: 92px;
+    max-width: 260px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px 10px 14px;
+    background: var(--answerlay-surface);
+    color: var(--answerlay-fg);
+    border: 1px solid var(--answerlay-line);
+    border-radius: 12px;
+    box-shadow: var(--answerlay-shadow-panel);
+    font-family: var(--answerlay-font-body);
+    font-size: 13px;
+    line-height: 1.4;
+    animation: answerlay-greeting-bubble-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .greeting-bubble.position-right {
+    right: 24px;
+  }
+  .greeting-bubble.position-left {
+    left: 24px;
+  }
+
+  /* Pointer triangle aligned with the centre of the launcher icon (56/2 = 28px from its edge). */
+  .greeting-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    width: 10px;
+    height: 10px;
+    background: var(--answerlay-surface);
+    border-right: 1px solid var(--answerlay-line);
+    border-bottom: 1px solid var(--answerlay-line);
+    transform: rotate(45deg);
+  }
+  .greeting-bubble.position-right::after {
+    right: 22px;
+  }
+  .greeting-bubble.position-left::after {
+    left: 22px;
+  }
+
+  .greeting-bubble-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .greeting-bubble-close {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--answerlay-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease;
+  }
+  .greeting-bubble-close:hover {
+    background: var(--answerlay-line);
+    color: var(--answerlay-fg);
+  }
+  .greeting-bubble-close svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  @keyframes answerlay-greeting-bubble-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* Hide the bubble while the panel is open (defensive — render-side
+     gating should already prevent this, but keep CSS in sync). */
+  :host([open]) .greeting-bubble {
+    display: none;
+  }
+
   /* Retract the launcher visually when the panel is open. */
   :host([open]) .launcher {
     opacity: 0;

@@ -25,6 +25,11 @@ export interface AssistantConfig {
   statusLabel?: string
   // Hide the "Powered by Answerlay" line at the bottom of the panel.
   hideCredit?: boolean
+  // When true, the widget pops a small bubble with the greeting text above
+  // the launcher icon once status flips to `ready` (desktop) or 5 s after
+  // config loads (mobile). Auto-hides after 8 s; dismissible; once dismissed
+  // in a tab session, it does not reappear (sessionStorage per assistantId).
+  showGreetingBubble?: boolean
 }
 
 export const DEFAULT_CONFIG: AssistantConfig = {
