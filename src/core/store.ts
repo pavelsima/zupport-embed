@@ -36,7 +36,7 @@ export const STAGE_LABELS: Record<StageKey, string> = {
   config: 'Loading configuration',
   scenarios: 'Loading scenarios',
   vectors: 'Loading knowledge base',
-  embedder: 'Loading intent model',
+  embedder: 'Loading retrieval model',
   llm: 'Loading AI model',
 }
 
@@ -137,10 +137,10 @@ export const aggregateProgress = (stages: ChatState['stages']): number => {
 }
 
 // The stages that must be done for the user to send a message at a given
-// tier. Tier D needs scenarios + embedder; tiers A/B additionally need the
-// LLM + vectors for RAG retrieval.
+// tier. Tier D only needs scenarios (lexical-only Fuse matching, no model);
+// tiers A/B/C additionally need the embedder + vectors + LLM for RAG.
 export const requiredStagesForTier = (tier: Tier | null): StageKey[] => {
-  if (tier === 'D' || tier === null) return ['scenarios', 'embedder']
+  if (tier === 'D' || tier === null) return ['scenarios']
   return ['scenarios', 'vectors', 'embedder', 'llm']
 }
 

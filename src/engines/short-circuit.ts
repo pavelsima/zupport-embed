@@ -1,27 +1,22 @@
 import Fuse from 'fuse.js'
 import {
   buildScenarioFuse,
-  embeddingMatch,
   lexicalMatch,
-  mergeSuggestions,
+  SUGGEST_TOP_N,
   type ScenarioMatch,
 } from '../rag/matcher'
-import type { PublishedScenario, ScenarioMatcherModel } from '../rag/scenarios-types'
+import type { PublishedScenario } from '../rag/scenarios-types'
 
 export interface ShortCircuitInput {
   question: string
   scenarios: PublishedScenario[]
   fuse?: Fuse<{ id: string; question: string; variants: string; ref: PublishedScenario }>
-  embed?: (text: string) => Promise<number[]>
-  embeddingModel?: ScenarioMatcherModel
-  // Cosine-similarity cutoff for the embedding pass. Omit for the default.
-  matchThreshold?: number
 }
 
 export interface ShortCircuitHit {
   kind: 'scenario'
   scenario: PublishedScenario
-  source: 'lexical' | 'embedding'
+  source: 'lexical'
   score: number
 }
 
@@ -29,14 +24,13 @@ export interface ShortCircuitMiss {
   kind: 'miss'
   suggestions: PublishedScenario[]
   rankedLexical: ScenarioMatch[]
-  rankedEmbedding: ScenarioMatch[]
 }
 
 export type ShortCircuitResult = ShortCircuitHit | ShortCircuitMiss
 
-// Run the same lexical + embedding match used in mobile-mode against the
-// scenarios.json. If either pass crosses its confidence threshold, return
-// the curated answer and skip the LLM.
+// Lexical-only scenario short-circuit. Runs Fuse over the published
+// question + variants; returns a hit when the top match crosses
+// LEXICAL_CONFIDENT, otherwise the lexical-ranked suggestion list.
 export const shortCircuit = async (
   input: ShortCircuitInput,
 ): Promise<ShortCircuitResult> => {
@@ -50,30 +44,10 @@ export const shortCircuit = async (
     }
   }
 
-  let rankedEmbedding: ScenarioMatch[] = []
-  if (input.embed) {
-    try {
-      const qVec = await input.embed(input.question)
-      const emb = embeddingMatch(input.scenarios, qVec, input.embeddingModel, input.matchThreshold)
-      rankedEmbedding = emb.ranked
-      if (emb.best) {
-        return {
-          kind: 'scenario',
-          scenario: emb.best.scenario,
-          source: 'embedding',
-          score: emb.best.score,
-        }
-      }
-    } catch {
-      // Embedding failed — fall through to suggestions list.
-    }
-  }
-
   return {
     kind: 'miss',
-    suggestions: mergeSuggestions(lex.ranked, rankedEmbedding),
+    suggestions: lex.ranked.slice(0, SUGGEST_TOP_N).map((m) => m.scenario),
     rankedLexical: lex.ranked,
-    rankedEmbedding,
   }
 }
 

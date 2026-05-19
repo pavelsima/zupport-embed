@@ -10,8 +10,9 @@ export interface AssistantConfig {
   topK: number
   maxTokens: number
   scenarioFallbackMessage?: string
-  // Cosine-similarity cutoff (0..1) for scenario matching. Higher = stricter.
-  // When absent, the matcher falls back to EMBEDDING_CONFIDENT.
+  // Legacy — ignored. Scenario matching is now lexical-only (Fuse); this
+  // cosine threshold no longer applies. Kept so older config.json files
+  // still parse.
   scenarioMatchThreshold?: number
   // BCP-47-ish language code ('cs', 'en', 'de', …). When set, the LLM is
   // hard-instructed to respond in this language. When absent, language is
@@ -39,7 +40,6 @@ export const DEFAULT_CONFIG: AssistantConfig = {
   position: 'bottom-right',
   topK: 5,
   maxTokens: 256,
-  scenarioMatchThreshold: 0.72,
 }
 
 // The new public config.json the main app must publish per assistant.

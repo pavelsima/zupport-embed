@@ -10,19 +10,15 @@ export interface ScenariosResult {
   source: 'scenario' | 'fallback'
   scenario?: PublishedScenario
   suggestions?: PublishedScenario[]
-  matchSource?: 'lexical' | 'embedding'
+  matchSource?: 'lexical'
 }
 
-// The scenarios-only "engine" used on Tier D and on mobile. Doesn't load
-// any model on its own; wires the matcher into a single ask() call.
+// The scenarios-only "engine" used on Tier D and on mobile. Pure lexical
+// (Fuse) matching — no embedder load.
 export class ScenariosEngine {
   private fuse: ReturnType<typeof buildScenarioFuse> | null = null
 
-  constructor(
-    private readonly payload: ScenariosPayload,
-    private readonly embed?: (text: string) => Promise<number[]>,
-    private readonly matchThreshold?: number,
-  ) {
+  constructor(private readonly payload: ScenariosPayload) {
     this.fuse = buildScenarioFuse(payload.scenarios)
   }
 
@@ -31,9 +27,6 @@ export class ScenariosEngine {
       question,
       scenarios: this.payload.scenarios,
       fuse: this.fuse ?? undefined,
-      embed: this.embed,
-      embeddingModel: this.payload.embeddingModel,
-      matchThreshold: this.matchThreshold,
     })
 
     if (result.kind === 'scenario') {

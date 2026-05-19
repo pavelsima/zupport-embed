@@ -29,14 +29,7 @@ export { QwenEngine } from './engines/qwen'
 export { WllamaEngine } from './engines/wllama'
 export { QueryEmbedder } from './rag/query-embedder'
 export { cosineTopK, toRetrievalChunk } from './rag/retrieve'
-export {
-  lexicalMatch,
-  embeddingMatch,
-  mergeSuggestions,
-  cosine,
-  LEXICAL_CONFIDENT,
-  EMBEDDING_CONFIDENT,
-} from './rag/matcher'
+export { lexicalMatch, LEXICAL_CONFIDENT } from './rag/matcher'
 export { detectLanguage } from './chat/detect-language'
 export { renderMarkdown } from './chat/render-markdown'
 export {

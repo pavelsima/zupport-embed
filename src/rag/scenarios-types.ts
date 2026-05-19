@@ -2,6 +2,9 @@
 // running in scenarios mode, and the desktop chat consults for the
 // pre-LLM short-circuit.
 
+// Legacy — scenario matching is now lexical (Fuse) only. The runtime no
+// longer reads pre-computed embeddings; this type stays for back-compat
+// with older publisher payloads.
 export type ScenarioMatcherModel = 'mlm-l6-v2' | 'mlm-l12-v2' | 'e5-small'
 
 export interface PublishedScenario {
@@ -9,15 +12,17 @@ export interface PublishedScenario {
   question: string
   variants: string[]
   answer: string
-  // Pre-computed embeddings for [question, ...variants]. Optional — present
-  // only when the embedder fallback was enabled at publish time.
+  // Legacy — pre-computed embeddings ignored by the runtime as of the
+  // lexical-only scenario matcher. Kept so old payloads still parse.
   embeddings?: number[][]
 }
 
 export interface ScenariosPayload {
   schema: 1
   builtAt: string
+  // Legacy — ignored by the runtime (lexical-only matching).
   embeddingModel?: ScenarioMatcherModel
+  // Legacy — ignored by the runtime (lexical-only matching).
   embeddingDim?: number
   fallbackMessage: string
   scenarios: PublishedScenario[]

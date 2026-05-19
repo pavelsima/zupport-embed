@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.7.0
+
+Lexical-only scenario matching; embedder retained for RAG only.
+
+- Scenario short-circuit (intent recognition) is now **lexical-only** (Fuse over `question` + `variants`) on every tier — the multilingual-e5-small embedder is no longer used for intent matching. Variants act as authored synonyms; thresholds and recall behaviour for `lexicalMatch` are unchanged.
+- Tier D (mobile / iOS) now loads **zero models** for the chat itself. The embedder stage is marked `skipped` at boot, and the warm-on-launcher-tap path was removed. This unblocks iOS Safari, which struggled to load the ~118 MB q8 ONNX.
+- `multilingual-e5-small` stays as the RAG query embedder on tiers A/B/C — only loaded when the LLM path runs.
+- `STAGE_LABELS.embedder` relabeled to `Loading retrieval model` (it now exclusively serves RAG).
+- `requiredStagesForTier('D')` reduced to `['scenarios']`.
+- **Breaking (package consumers only):** the named exports `embeddingMatch`, `mergeSuggestions`, `cosine`, and `EMBEDDING_CONFIDENT` are removed from `src/index.ts`. `lexicalMatch` and `LEXICAL_CONFIDENT` remain. `ScenariosEngine` constructor no longer accepts an `embed` callback or `matchThreshold`. `shortCircuit()` no longer accepts `embed`, `embeddingModel`, or `matchThreshold`.
+- Legacy fields kept for back-compat: `scenarios.json` may still ship `embeddings` / `embeddingModel` / `embeddingDim`, and `AssistantConfig.scenarioMatchThreshold` is still accepted — all silently ignored.
+
 ## 0.6.0
 
 Opt-in greeting bubble above the launcher.

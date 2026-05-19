@@ -176,16 +176,6 @@ export class ChatController implements ReactiveController {
 
   setOpen(open: boolean): void {
     this.setState({ open })
-    // Tier D doesn't pre-warm the embedder during boot (mobile cellular
-    // sensitivity). Trigger it now that the user has explicitly opened the
-    // panel. The loading UI will show progress until ready.
-    if (
-      open &&
-      this.state.tier?.tier === 'D' &&
-      this.state.stages.embedder.status === 'pending'
-    ) {
-      void this.preWarmEmbedder()
-    }
   }
 
   // Re-pull config, scenarios, and vectors. Used by the dashboard test panel
@@ -279,12 +269,12 @@ export class ChatController implements ReactiveController {
 
     // Mark stages skipped/pending based on tier.
     if (tier.tier === 'D') {
-      // Mobile / scenarios-only: no LLM. The embedder downloads on launcher
-      // click (cellular-sensitive devices stay quiet until the visitor
-      // explicitly engages the widget).
+      // Mobile / scenarios-only: no LLM, no embedder. Scenario matching is
+      // lexical (Fuse) — keeps iOS off the multilingual-e5-small download.
+      // Vectors aren't strictly needed here either, but the user spec is to
+      // load them eagerly so the data stays fresh.
       this.setStage('llm', { status: 'skipped' })
-      // Vectors aren't strictly needed for tier-D scenario matching, but the
-      // user spec is to load them eagerly so the data stays fresh.
+      this.setStage('embedder', { status: 'skipped' })
     }
 
     // Vectors are eager-loaded on all tiers. Scenarios payload triggers a
@@ -327,11 +317,7 @@ export class ChatController implements ReactiveController {
         ),
       }
       this.scenariosPayload = merged
-      this.scenariosEngine = new ScenariosEngine(
-        merged,
-        (text) => this.ensureEmbedder().embed(text),
-        cfg?.scenarioMatchThreshold,
-      )
+      this.scenariosEngine = new ScenariosEngine(merged)
       this.setStage('scenarios', { status: 'done', progress: 1 })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -428,11 +414,15 @@ export class ChatController implements ReactiveController {
     this.engine = null
     this.enginePromise = null
     this.opts.modeOverride = mode
-    // Reset the LLM stage. Embedder + scenarios + vectors stay loaded.
+    // Reset the LLM + embedder stages. Scenarios + vectors stay loaded.
     if (mode === 'mobile') {
       this.setStage('llm', { status: 'skipped' })
+      this.setStage('embedder', { status: 'skipped' })
     } else {
       this.setStage('llm', { status: 'pending' })
+      if (this.state.stages.embedder.status === 'skipped') {
+        this.setStage('embedder', { status: 'pending' })
+      }
     }
     this.setState({ tier: null })
     void selectTier({
@@ -568,9 +558,6 @@ export class ChatController implements ReactiveController {
       const result = await shortCircuit({
         question: trimmed,
         scenarios: this.scenariosPayload.scenarios,
-        embed: (t) => this.ensureEmbedder().embed(t),
-        embeddingModel: this.scenariosPayload.embeddingModel,
-        matchThreshold: this.state.config?.config.scenarioMatchThreshold,
       })
       if (result.kind === 'scenario') {
         const id = newId('a')

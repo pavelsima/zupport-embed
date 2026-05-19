@@ -38,32 +38,31 @@ describe('shortCircuit', () => {
     expect(result.kind).toBe('miss')
   })
 
-  it('uses the embedding callback when lexical fails and a scenario has embeddings', async () => {
-    const withEmb: PublishedScenario[] = [
-      {
-        ...scenarios[0]!,
-        embeddings: [[0.99, 0.01, 0]],
-      },
+  it('ignores legacy pre-computed embeddings on scenarios', async () => {
+    // Old publisher payloads still ship an `embeddings` array. Runtime
+    // is now lexical-only — the field should be silently ignored, not
+    // cause a parse or match error.
+    const withLegacyEmbeddings: PublishedScenario[] = [
+      { ...scenarios[0]!, embeddings: [[0.1, 0.2, 0.3]] },
     ]
     const result = await shortCircuit({
-      question: 'something completely unrelated',
-      scenarios: withEmb,
-      embed: async () => [1, 0, 0],
+      question: 'How long does shipping take?',
+      scenarios: withLegacyEmbeddings,
     })
     expect(result.kind).toBe('scenario')
     if (result.kind === 'scenario') {
-      expect(result.source).toBe('embedding')
+      expect(result.source).toBe('lexical')
     }
   })
 
-  it('survives an embedder failure and returns suggestions', async () => {
+  it('matches on authored variants as synonyms', async () => {
     const result = await shortCircuit({
-      question: 'gibberish question with nothing matching',
+      question: 'When will my order arrive?',
       scenarios,
-      embed: async () => {
-        throw new Error('embedder offline')
-      },
     })
-    expect(result.kind).toBe('miss')
+    expect(result.kind).toBe('scenario')
+    if (result.kind === 'scenario') {
+      expect(result.scenario.id).toBe('shipping')
+    }
   })
 })
