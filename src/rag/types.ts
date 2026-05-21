@@ -1,6 +1,6 @@
 // Shape of the per-assistant vectors payload, written by the Answerlay
 // ingest pipeline and consumed here by the retriever. Embedded with
-// multilingual-e5-small (q8, WASM).
+// bge-small-en-v1.5 (q8, WASM) — English-only.
 
 export interface Chunk {
   chunk_id: string
@@ -19,7 +19,7 @@ export interface Chunk {
 }
 
 export interface VectorsPayload {
-  model: 'e5-small'
+  model: 'bge-small-en-v1.5'
   dim: number
   builtAt: string
   chunkCount: number

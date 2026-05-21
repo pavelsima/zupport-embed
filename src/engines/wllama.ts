@@ -9,9 +9,6 @@ import type {
 import { buildChatMlPrompt, STOP_TOKENS } from './prompt'
 import { TIER_APPROX_MB, TIER_LABELS, type Tier } from './tier'
 
-const stripThinkingTags = (text: string): string =>
-  text.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<think>[\s\S]*/g, '').trim()
-
 export type WllamaTier = 'B'
 
 interface VariantConfig {
@@ -22,8 +19,8 @@ interface VariantConfig {
 const VARIANTS: Record<WllamaTier, VariantConfig> = {
   B: {
     modelUrl:
-      'https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf',
-    filename: 'qwen3-0.6b-q4.gguf',
+      'https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf',
+    filename: 'smollm2-360m-instruct-q4.gguf',
   },
 }
 
@@ -90,13 +87,12 @@ export class WllamaEngine implements Engine {
     this.busy = true
 
     let rawCollected = ''
-    let cleanSent = ''
+    let sentLen = 0
     try {
       const prompt = buildChatMlPrompt({
         question: input.question,
         shopName: input.shopName,
         chunks: input.chunks,
-        language: input.language,
         history: input.history,
       })
 
@@ -109,21 +105,19 @@ export class WllamaEngine implements Engine {
         stopTokens: STOP_TOKENS as unknown as number[],
         onNewToken: (_token: number, _piece: Uint8Array, currentText: string) => {
           rawCollected = currentText
-          const cleanNow = stripThinkingTags(rawCollected)
-          const delta = cleanNow.slice(cleanSent.length)
+          const delta = rawCollected.slice(sentLen)
           if (delta) {
-            cleanSent = cleanNow
+            sentLen = rawCollected.length
             onToken?.(delta)
           }
         },
       })
 
-      const raw = rawCollected
       const finalText = STOP_TOKENS.reduce(
         (s, t) => (s.endsWith(t) ? s.slice(0, -t.length).trim() : s),
-        raw.trim(),
+        rawCollected.trim(),
       )
-      return stripThinkingTags(finalText)
+      return finalText
     } finally {
       this.busy = false
     }

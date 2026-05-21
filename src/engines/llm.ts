@@ -9,7 +9,7 @@ import { TIER_APPROX_MB, TIER_LABELS } from './tier'
 // Inlined as a Blob URL so the IIFE embed bundle stays a single file —
 // classic <script src=…> from GitHub Releases can't resolve a separate
 // worker chunk cross-origin.
-import QwenWorker from '../workers/qwen.worker.ts?worker&inline'
+import LlmWorker from '../workers/llm.worker.ts?worker&inline'
 
 interface PendingTask {
   resolve: (text: string) => void
@@ -18,7 +18,7 @@ interface PendingTask {
   collected: string
 }
 
-export class QwenEngine implements Engine {
+export class LlmEngine implements Engine {
   readonly tier = 'A' as const
   readonly label = TIER_LABELS.A
   readonly mode = 'generation' as const
@@ -39,7 +39,7 @@ export class QwenEngine implements Engine {
       this.initResolve = resolve
       this.initReject = reject
 
-      const worker = new QwenWorker({ name: 'answerlay-qwen' })
+      const worker = new LlmWorker({ name: 'answerlay-llm' })
       this.worker = worker
 
       worker.onmessage = (e) => {
@@ -70,7 +70,7 @@ export class QwenEngine implements Engine {
             this.pending = null
           }
         } else if (data.type === 'error') {
-          const err = new Error(data.message || 'Qwen worker error')
+          const err = new Error(data.message || 'LLM worker error')
           if (data.where === 'init') {
             this.initReject?.(err)
             this.initResolve = this.initReject = null
@@ -82,7 +82,7 @@ export class QwenEngine implements Engine {
       }
 
       worker.onerror = (e) => {
-        const err = new Error(e.message || 'Qwen worker error')
+        const err = new Error(e.message || 'LLM worker error')
         if (this.initReject) {
           this.initReject(err)
           this.initResolve = this.initReject = null
@@ -97,8 +97,8 @@ export class QwenEngine implements Engine {
   }
 
   ask(input: AskInput, onToken?: GenerationCallback): Promise<string> {
-    if (!this.worker) return Promise.reject(new Error('Qwen engine not initialised'))
-    if (this.pending) return Promise.reject(new Error('Qwen engine is already generating'))
+    if (!this.worker) return Promise.reject(new Error('LLM engine not initialised'))
+    if (this.pending) return Promise.reject(new Error('LLM engine is already generating'))
 
     return new Promise<string>((resolve, reject) => {
       this.pending = { resolve, reject, onToken, collected: '' }
@@ -108,7 +108,6 @@ export class QwenEngine implements Engine {
         shopName: input.shopName,
         chunks: input.chunks,
         maxTokens: input.maxTokens ?? 256,
-        language: input.language,
         history: input.history,
       })
     })

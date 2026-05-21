@@ -96,7 +96,7 @@ export const selectTier = async (opts: SelectOptions = {}): Promise<TierSelectio
     }
   }
 
-  // Tier B — at least 2 GB-ish, can handle Qwen3-0.6B GGUF.
+  // Tier B — at least 2 GB-ish, can handle SmolLM2-360M GGUF.
   if ((ram ?? 4) >= 2) {
     return {
       tier: 'B',

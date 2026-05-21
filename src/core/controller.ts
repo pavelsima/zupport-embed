@@ -1,6 +1,6 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit'
 import type { Engine } from '../engines/engine'
-import { QwenEngine } from '../engines/qwen'
+import { LlmEngine } from '../engines/llm'
 import { WllamaEngine } from '../engines/wllama'
 import { ScenariosEngine } from '../engines/scenarios-only'
 import { selectTier, stepDownTier } from '../engines/select'
@@ -184,7 +184,7 @@ export class ChatController implements ReactiveController {
   async refresh(opts: { clearMessages?: boolean; bypassCache?: boolean } = {}): Promise<void> {
     if (opts.bypassCache) {
       try {
-        await clearCachedVectors(this.opts.assistantId, 'e5s')
+        await clearCachedVectors(this.opts.assistantId, 'bge')
       } catch {
         // best-effort
       }
@@ -270,7 +270,7 @@ export class ChatController implements ReactiveController {
     // Mark stages skipped/pending based on tier.
     if (tier.tier === 'D') {
       // Mobile / scenarios-only: no LLM, no embedder. Scenario matching is
-      // lexical (Fuse) — keeps iOS off the multilingual-e5-small download.
+      // lexical (Fuse) — keeps iOS off the embedder download.
       // Vectors aren't strictly needed here either, but the user spec is to
       // load them eagerly so the data stays fresh.
       this.setStage('llm', { status: 'skipped' })
@@ -334,14 +334,14 @@ export class ChatController implements ReactiveController {
     }
 
     if (!this.opts.disableCache) {
-      const cached = await getCachedVectors(this.opts.assistantId, 'e5s')
+      const cached = await getCachedVectors(this.opts.assistantId, 'bge')
       if (cached) {
         // A 1-frame `mounting` micro-state stops the loading panel from
         // flickering when vectors come straight from IDB.
         this.setStage('vectors', { status: 'mounting', progress: 1 })
         await new Promise((r) => requestAnimationFrame(() => r(undefined)))
         this.vectorsPayload = {
-          model: 'e5-small',
+          model: 'bge-small-en-v1.5',
           dim: cached.chunks[0]?.embedding.length ?? 384,
           builtAt: cached.builtAt,
           chunkCount: cached.chunks.length,
@@ -360,7 +360,7 @@ export class ChatController implements ReactiveController {
       this.vectorsPayload = payload
 
       if (!this.opts.disableCache) {
-        void setCachedVectors(this.opts.assistantId, 'e5s', {
+        void setCachedVectors(this.opts.assistantId, 'bge', {
           loadedAt: Date.now(),
           builtAt: payload.builtAt,
           chunks: payload.chunks,
@@ -472,7 +472,7 @@ export class ChatController implements ReactiveController {
     const tryTier = async (t: Tier): Promise<Engine | null> => {
       try {
         if (t === 'A') {
-          const e = new QwenEngine(this.opts.modelBaseUrl ?? undefined)
+          const e = new LlmEngine(this.opts.modelBaseUrl ?? undefined)
           await e.init(onProgress)
           return e
         }
@@ -609,7 +609,6 @@ export class ChatController implements ReactiveController {
     this.pushMessage({ id, role: 'assistant', content: '', status: 'streaming', source: 'llm' })
     this.setStatus('streaming')
 
-    const language = this.state.config?.config.language || undefined
     const history = this.buildHistoryForLLM()
 
     try {
@@ -620,7 +619,6 @@ export class ChatController implements ReactiveController {
           shopName: this.state.config?.config.name ?? 'us',
           chunks,
           maxTokens,
-          language,
           history,
         },
         (token) => {

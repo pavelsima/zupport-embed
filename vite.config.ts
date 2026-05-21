@@ -11,7 +11,6 @@ const EXTERNAL_FOR_LIB = [
   'lit/directives/unsafe-html.js',
   'fuse.js',
   'marked',
-  'franc-min',
   '@huggingface/transformers',
   '@wllama/wllama',
 ]

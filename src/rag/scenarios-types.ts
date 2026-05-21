@@ -4,8 +4,14 @@
 
 // Legacy — scenario matching is now lexical (Fuse) only. The runtime no
 // longer reads pre-computed embeddings; this type stays for back-compat
-// with older publisher payloads.
-export type ScenarioMatcherModel = 'mlm-l6-v2' | 'mlm-l12-v2' | 'e5-small'
+// with older publisher payloads. Current publishers write
+// 'bge-small-en-v1.5'; the older values remain so historical scenarios.json
+// files still parse.
+export type ScenarioMatcherModel =
+  | 'bge-small-en-v1.5'
+  | 'mlm-l6-v2'
+  | 'mlm-l12-v2'
+  | 'e5-small'
 
 export interface PublishedScenario {
   id: string

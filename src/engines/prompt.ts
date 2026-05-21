@@ -9,59 +9,37 @@ export interface PromptInput {
   question: string
   shopName: string
   chunks: RetrievalChunk[]
-  language?: string
   history?: PromptHistoryTurn[]
 }
 
-const LANGUAGE_NAMES: Record<string, string> = {
-  cs: 'Czech',
-  en: 'English',
-  de: 'German',
-  fr: 'French',
-  es: 'Spanish',
-  it: 'Italian',
-  pt: 'Portuguese',
-  pl: 'Polish',
-  nl: 'Dutch',
-  ja: 'Japanese',
-}
-
-// System prompt used by both Qwen (chat-template path) and wllama (manual
-// ChatML). The shape is identical so curated answers are reproducible across
-// tiers.
-export const buildSystemPrompt = ({ question: _question, shopName, chunks, language }: PromptInput): string => {
+// System prompt used by both the Tier A ONNX path (via chat-template) and
+// the Tier B wllama path (manual ChatML). English-only.
+export const buildSystemPrompt = ({ shopName, chunks }: PromptInput): string => {
   const today = new Date().toLocaleDateString()
   const context = chunks.map((c) => `[${c.heading}]\n${c.text}`).join('\n\n')
-  const langName = language ? (LANGUAGE_NAMES[language] ?? language) : null
-  const languageInstruction = langName
-    ? `You MUST respond ONLY in ${langName}. Do NOT use English or any other language unless ${langName} is English.\n`
-    : `Use the same language as the customer's question.\n`
   return (
     `You are a helpful support assistant for ${shopName}.\n` +
     `Answer questions using ONLY the context provided below.\n` +
     `If the information is not in the context, say so honestly and suggest contacting support.\n` +
-    `Be concise. ${languageInstruction}` +
+    `Be concise.\n` +
     `Today's date: ${today}\n\n` +
     `--- RELEVANT INFORMATION ---\n${context}\n---`
   )
 }
 
+// ChatML format used by SmolLM2 (Tier B via wllama). SmolLM2 uses
+// <|im_start|>/<|im_end|> turn markers; we render the turns manually because
+// wllama's GGUF chat-template support is patchy across versions.
 export const buildChatMlPrompt = (input: PromptInput): string => {
   const system = buildSystemPrompt(input)
   const historyBlock = (input.history ?? [])
-    .map(
-      (t) =>
-        `<|im_start|>${t.role}\n${t.role === 'assistant' ? `<think>\n\n</think>\n\n${t.content}` : t.content}<|im_end|>\n`,
-    )
+    .map((t) => `<|im_start|>${t.role}\n${t.content}<|im_end|>\n`)
     .join('')
-  // Prefill the assistant turn with an empty <think> block so Qwen3 skips
-  // thinking mode and generates only the answer. This works with raw ChatML
-  // (i.e. when the GGUF chat template isn't applied by the runtime).
   return (
     `<|im_start|>system\n${system}<|im_end|>\n` +
     historyBlock +
     `<|im_start|>user\n${input.question}<|im_end|>\n` +
-    `<|im_start|>assistant\n<think>\n\n</think>\n\n`
+    `<|im_start|>assistant\n`
   )
 }
 

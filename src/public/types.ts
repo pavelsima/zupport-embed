@@ -14,10 +14,6 @@ export interface AssistantConfig {
   // cosine threshold no longer applies. Kept so older config.json files
   // still parse.
   scenarioMatchThreshold?: number
-  // BCP-47-ish language code ('cs', 'en', 'de', …). When set, the LLM is
-  // hard-instructed to respond in this language. When absent, language is
-  // auto-detected from the user's query.
-  language?: string
   // Scenario IDs shown as quick-reply buttons under the greeting (max 8).
   greetingQuickReplyIds?: string[]
   // Optional, additive fields used by the widget chrome. Existing

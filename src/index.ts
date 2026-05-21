@@ -25,12 +25,11 @@ export { shortCircuit, buildScenarioFuse } from './engines/short-circuit'
 export type { ShortCircuitResult, ShortCircuitHit, ShortCircuitMiss } from './engines/short-circuit'
 export { ScenariosEngine } from './engines/scenarios-only'
 export type { ScenariosResult } from './engines/scenarios-only'
-export { QwenEngine } from './engines/qwen'
+export { LlmEngine } from './engines/llm'
 export { WllamaEngine } from './engines/wllama'
 export { QueryEmbedder } from './rag/query-embedder'
 export { cosineTopK, toRetrievalChunk } from './rag/retrieve'
 export { lexicalMatch, LEXICAL_CONFIDENT } from './rag/matcher'
-export { detectLanguage } from './chat/detect-language'
 export { renderMarkdown } from './chat/render-markdown'
 export {
   TIER_LABELS,

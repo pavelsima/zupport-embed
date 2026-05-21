@@ -5,7 +5,7 @@ const VECTORS_STORE = 'vectors'
 const DB_VERSION = 1
 const TTL_MS = 60 * 60 * 1000
 
-export type EmbeddingModel = 'e5s'
+export type EmbeddingModel = 'bge'
 
 export interface CachedVectors {
   loadedAt: number

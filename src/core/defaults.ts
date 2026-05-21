@@ -2,7 +2,7 @@
 // In development this resolves to the local Docker assets container;
 // in production it points to the CDN.
 //
-// Files follow the path:  assistants/{assistantId}/{config|scenarios|vectors-e5s}.json
+// Files follow the path:  assistants/{assistantId}/{config|scenarios|vectors-bge}.json
 //
 // Override per-embed via `data-config-base-url` (relative URL rewrite) or
 // `data-config-url` (fully custom config.json URL, bypasses this entirely).
