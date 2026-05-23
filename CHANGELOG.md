@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.13.3
+
+Download-speed calculation fix. The EMA in 0.13.1 could be seeded with absurd values (1000+ MB/s) by WebLLM's first progress callback — that callback can land after a whole shard or a batch of shader compiles, with `dp * totalMB / dt` greatly overestimating actual network throughput. Once seeded the EMA never recovered.
+
+- Replaced the EMA with a rolling 8 s window of `{t, p}` samples. Speed is computed once the window spans at least 1.5 s.
+- Samples implying >250 MB/s are rejected (real network downloads land well below this; higher values come from cache hits or compile-phase progress). The last value measured in a sane range is preserved so the UI doesn't flicker to "—" mid-download.
+- When the model is fully cached and no real download happens, `speedMBs` stays 0 and `etaSeconds` stays null — both UI surfaces render "—" honestly instead of inventing a number.
+
 ## 0.13.2
 
 Tooltip rewrite, live ETA countdown, friendlier fallback wording, and a few UX fixes on top of 0.13.1.

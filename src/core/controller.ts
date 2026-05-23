@@ -66,14 +66,23 @@ export class ChatController implements ReactiveController {
   private greetingMessageId: string | null = null
   private destroyed = false
 
-  // Rolling tracker for the LLM-stage download. We compute speed from
-  // progress deltas with an EMA so a momentary stall (chunk boundary,
-  // checkpoint mount) doesn't make the ETA flap. Reset between runs.
+  // Rolling tracker for the LLM-stage download.
+  //
+  // WebLLM's progress callback can fire in big jumps (a whole shard
+  // lands, multiple shaders compile in one tick, etc.) and `progress`
+  // includes compile/mount work, not just bytes. A naïve EMA seeded
+  // from the first sample lands at 1000+ MB/s and never recovers.
+  //
+  // We keep a rolling 8 s window of {t, p} samples and compute speed
+  // over that window. Samples that imply >250 MB/s are treated as
+  // non-network progress (cache hit, compile burst) and ignored — we
+  // keep the last value that was in a sane range so the UI doesn't
+  // flicker to "—" mid-download.
   private llmTracker: {
-    lastT: number
-    lastP: number
-    smoothed: number
-  } = { lastT: 0, lastP: 0, smoothed: 0 }
+    samples: Array<{ t: number; p: number }>
+    lastGoodSpeedMBs: number
+    started: boolean
+  } = { samples: [], lastGoodSpeedMBs: 0, started: false }
 
   constructor(host: ReactiveControllerHost, opts: ControllerOptions) {
     this.host = host
@@ -147,7 +156,7 @@ export class ChatController implements ReactiveController {
       return {
         downloadedMB: totalMB,
         totalMB,
-        speedMBs: this.llmTracker.smoothed,
+        speedMBs: this.llmTracker.lastGoodSpeedMBs,
         etaSeconds: 0,
         etaAnchor: wallNow,
       }
@@ -161,8 +170,12 @@ export class ChatController implements ReactiveController {
         : 0
     const now =
       typeof performance !== 'undefined' ? performance.now() : Date.now()
-    if (!this.llmTracker.lastT) {
-      this.llmTracker = { lastT: now, lastP: p, smoothed: 0 }
+    if (!this.llmTracker.started) {
+      this.llmTracker = {
+        samples: [{ t: now, p }],
+        lastGoodSpeedMBs: 0,
+        started: true,
+      }
       return {
         downloadedMB: p * totalMB,
         totalMB,
@@ -171,25 +184,38 @@ export class ChatController implements ReactiveController {
         etaAnchor: wallNow,
       }
     }
-    const dt = (now - this.llmTracker.lastT) / 1000
-    const dp = p - this.llmTracker.lastP
-    if (dt > 0.4 && dp > 0) {
-      const instSpeed = (dp * totalMB) / dt
-      this.llmTracker.smoothed = this.llmTracker.smoothed
-        ? 0.7 * this.llmTracker.smoothed + 0.3 * instSpeed
-        : instSpeed
-      this.llmTracker.lastT = now
-      this.llmTracker.lastP = p
+    // Append + trim to an 8 s window; keep at least 2 samples so we can
+    // still compute when callbacks slow down.
+    this.llmTracker.samples.push({ t: now, p })
+    const cutoff = now - 8000
+    while (
+      this.llmTracker.samples.length > 2 &&
+      this.llmTracker.samples[0]!.t < cutoff
+    ) {
+      this.llmTracker.samples.shift()
     }
+    const first = this.llmTracker.samples[0]!
+    const last = this.llmTracker.samples[this.llmTracker.samples.length - 1]!
+    const winDt = (last.t - first.t) / 1000
+    if (winDt >= 1.5 && last.p > first.p) {
+      const inst = ((last.p - first.p) * totalMB) / winDt
+      // Realistic network downloads land between ~0.05 MB/s (very slow
+      // mobile) and ~250 MB/s (gigabit fibre + nearby CDN). Anything
+      // above 250 MB/s almost certainly reflects either a cache hit or
+      // a burst of compile-phase progress with no actual bytes — ignore
+      // those samples so the displayed speed stays honest.
+      if (inst > 0 && inst < 250) {
+        this.llmTracker.lastGoodSpeedMBs = inst
+      }
+    }
+    const speed = this.llmTracker.lastGoodSpeedMBs
     const remaining = (1 - p) * totalMB
     const etaSeconds =
-      this.llmTracker.smoothed > 0
-        ? Math.max(1, Math.round(remaining / this.llmTracker.smoothed))
-        : null
+      speed > 0 ? Math.max(1, Math.round(remaining / speed)) : null
     return {
       downloadedMB: p * totalMB,
       totalMB,
-      speedMBs: this.llmTracker.smoothed,
+      speedMBs: speed,
       etaSeconds,
       etaAnchor: wallNow,
     }
