@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.9.5
+
+Tune generation params for SmolLM2; conversational system prompt; full-prompt logging.
+
+- v0.9.4's numbered-rules prompt backfired: SmolLM2-360M started narrating *about* the rules ("I can provide some additional details", "if there was any confusion regarding what I said earlier") instead of answering from CONTEXT. Replaced with a single short directive: "You are <shop>'s customer support assistant. Use the information below to answer the customer's question in 1-2 short sentences..." — conversational, one paragraph, no `Rules:` header.
+- Generation params changed to SmolLM2's officially recommended values per the HF model card: `temperature: 0.2` (was 0.7), `repetition_penalty: 1.05` (was 1.15). `top_p: 0.9` and `do_sample: true` retained. Low temperature anchors the model to CONTEXT instead of free-associating; the gentler repetition penalty allows accurate reuse of exact strings from the information block.
+- Added `[answerlay] llm.worker: prompt sent to model` console log of the fully rendered chat-template string immediately before generation. Pairs with the existing chunk-summary log so you can see both what was retrieved and how it was framed for the model.
+
 ## 0.9.4
 
 Stronger support-assistant persona + shorter, less rambly answers.

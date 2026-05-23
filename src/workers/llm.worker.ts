@@ -103,6 +103,7 @@ const llmHandleQuery = async (payload: {
       tokenize: false,
       add_generation_prompt: true,
     })
+    console.log('[answerlay] llm.worker: prompt sent to model\n' + prompt)
 
     let collected = ''
 
@@ -115,14 +116,17 @@ const llmHandleQuery = async (payload: {
       },
     })
 
-    // Qwen2.5-0.5B degenerates into loops ("The The The...") under greedy
-    // decoding. Sampling + a mild repetition penalty keeps it coherent.
+    // SmolLM2-360M-Instruct recommended generation config (HF model card):
+    // temperature 0.2 for factual replies, top_p 0.9, mild repetition penalty.
+    // Lower temperature than v0.9.3's 0.7 prevents the model from drifting
+    // off-context; 1.05 repetition_penalty is enough to break degenerate
+    // loops without distorting accurate token reuse from CONTEXT.
     await llmGenerator(prompt, {
       max_new_tokens: typeof payload.maxTokens === 'number' ? payload.maxTokens : 160,
       do_sample: true,
-      temperature: 0.7,
+      temperature: 0.2,
       top_p: 0.9,
-      repetition_penalty: 1.15,
+      repetition_penalty: 1.05,
       streamer,
     })
 
