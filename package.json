@@ -1,7 +1,7 @@
 {
   "name": "@answerlay/embed",
-  "version": "0.11.0",
-  "description": "Embeddable Lit web component chat widget for Answerlay — runs an in-browser LLM (Qwen3-0.6B on WebGPU, SmolLM2-360M on WASM) on desktop, scenario matching on mobile. English-only.",
+  "version": "0.12.0",
+  "description": "Embeddable Lit web component chat widget for Answerlay — runs Qwen3-0.6B in-browser (WebGPU or WASM) on desktop, scenario matching on mobile. English-only.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

@@ -82,26 +82,19 @@ export const selectTier = async (opts: SelectOptions = {}): Promise<TierSelectio
 
   const webgpu = await probeWebGPU()
   const ram = deviceMemoryGB
-  const cores = hardwareConcurrency
 
-  // Tier A — WebGPU + sufficient RAM + ≥4 cores.
-  if (webgpu && (ram ?? 8) >= 4 && (cores ?? 8) >= 4) {
+  // Tier A handles both WebGPU and WASM internally — the worker picks the
+  // backend (q4f16 on WebGPU, q4 on WASM). Any reasonable desktop with
+  // ≥2 GB RAM lands on Tier A; the `reason: 'no-webgpu'` annotation lets
+  // the UI surface the slower WASM path without dropping to a smaller
+  // model. Tier B is kept in the Tier type and in the Engine routing for
+  // back-compat (tierOverride='B' still works), but is no longer
+  // auto-selected.
+  if ((ram ?? 4) >= 2) {
     return {
       tier: 'A',
       mode: 'desktop',
-      reason: null,
-      webgpu: true,
-      deviceMemoryGB,
-      hardwareConcurrency,
-    }
-  }
-
-  // Tier B — at least 2 GB-ish, can handle SmolLM2-360M GGUF.
-  if ((ram ?? 4) >= 2) {
-    return {
-      tier: 'B',
-      mode: 'desktop',
-      reason: webgpu ? 'low-memory' : 'no-webgpu',
+      reason: webgpu ? null : 'no-webgpu',
       webgpu,
       deviceMemoryGB,
       hardwareConcurrency,

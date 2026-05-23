@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.12.0
+
+Stop auto-selecting Tier B. One model (Qwen3-0.6B), one tier on desktop, WebGPU/WASM picked inside the worker.
+
+- `selectTier()` no longer returns Tier B. Any desktop with ≥2 GB RAM now routes to Tier A regardless of WebGPU support; the worker decides at init time whether to use `q4f16` on WebGPU or `q4` on WASM. WebGPU-less desktops get a `reason: 'no-webgpu'` annotation so the UI can surface that they're on the slower path, but they still get Qwen3-0.6B quality instead of being downgraded to a smaller model.
+- Removed the prior Tier A gating (`webgpu && RAM≥4 && cores≥4`) — the threshold is now just RAM≥2. Below that, still Tier D (scenarios-only).
+- Tier B kept **dormant** in the type system and engine routing: `tierOverride='B'` from URL/attribute still works, and `stepDownTier` still considers it as a last-resort failover if Tier A's engine init fails. The wllama engine and `@wllama/wllama` dependency remain in place. Future cleanup (delete wllama, drop the dep, simplify `Tier` to `'A' | 'D'`) is a separate refactor.
+- `TIER_APPROX_MB.A` updated `450` → `570` to match observed q4f16 download size.
+- **UX caveat:** WebGPU-less desktops now download ~570 MB (instead of Tier B's ~230 MB) and generate at maybe ~5-8 tok/s instead of wllama's ~20 tok/s. Quality is materially better; speed and bandwidth are worse. Accepted as a deliberate trade.
+
 ## 0.11.0
 
 Tier A switched to Qwen3-0.6B (~450 MB). Quality of a 1.7B-class model at a third of the download.
