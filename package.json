@@ -1,6 +1,6 @@
 {
   "name": "@answerlay/embed",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Embeddable Lit web component chat widget for Answerlay — runs Qwen3-0.6B in-browser (WebGPU or WASM) on desktop, scenario matching on mobile. English-only.",
   "license": "MIT",
   "type": "module",
@@ -65,7 +65,9 @@
   "bugs": {
     "url": "https://github.com/pavelsima/Answerlay-embed/issues"
   },
-"dependencies": {
+  "dependencies": {
+    "@dicebear/collection": "^9.4.2",
+    "@dicebear/core": "^9.4.2",
     "@huggingface/transformers": "^3.0.0",
     "@wllama/wllama": "^2.4.0",
     "fuse.js": "^7.0.0",

@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.13.0
+
+Open the chat immediately on desktop while the LLM keeps downloading; surface model-load progress in the header instead of a full-page loading screen.
+
+- New `isChatOpenable(stages)` derivation: chat panel opens as soon as `config` + `scenarios` are ready. The full-screen loading panel now only appears for the brief window before scenarios resolve.
+- Header avatar has two states:
+  - **LLM downloading:** the existing two-block animated logo mark, scaled down inside a 32 px SVG ring that fills clockwise from `stages.llm.progress` (the model is ~570 MB on Tier A).
+  - **Ready:** Dicebear *thumbs* SVG seeded with `config.name`, rendered inline (no network) via `@dicebear/core` + `@dicebear/collection`.
+- Header status pill flips amber (`is-loading`) with copy "Limited knowledge available · full AI assistant is loading" while the LLM downloads, then green with "AI assistant ready to answer" once `stages.llm.status === 'done'`. LLM errors fall back to the ready state — the engine downgrades to scenarios-only silently and a permanent warning would be noise.
+- `controller.send()` short-circuits to the scenarios-only path when `stages.llm.status !== 'done'`, so non-scenario questions get the configured fallback message immediately instead of silently queueing on `enginePromise` for many seconds.
+- Mobile is unchanged in behaviour: Tier D skips the `llm`/`embedder`/`vectors` stages, so the header is green and shows the thumbs avatar from the moment the chat opens.
+- Size-limit budget for the CDN bundle bumped 110 KB → 120 KB to absorb the inline Dicebear deps (~5.6 KB gz). The old `userIcon` SVG is removed.
+
 ## 0.12.0
 
 Stop auto-selecting Tier B. One model (Qwen3-0.6B), one tier on desktop, WebGPU/WASM picked inside the worker.

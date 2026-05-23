@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, type PropertyValues } from 'lit'
 import { customElement, property, query, state } from 'lit/decorators.js'
+import { unsafeHTML } from 'lit/directives/unsafe-html.js'
 import './answerlay-typewriter'
 import { ChatController } from '../core/controller'
 import { parseMode, parseTier } from '../core/attributes'
@@ -8,6 +9,7 @@ import {
   aggregateProgress,
   allReady,
   hasStageError,
+  isChatOpenable,
   type ChatMessage,
 } from '../core/store'
 import { chatStyles } from '../styles/component'
@@ -18,8 +20,8 @@ import {
   closeIcon,
   sendIcon,
   sparkleIcon,
-  userIcon,
 } from './icons'
+import { thumbsAvatarSvg } from './dicebear-avatar'
 import { formatRelativeTime } from '../core/store'
 import {
   BUBBLE_AUTO_HIDE_MS,
@@ -501,18 +503,72 @@ export class AnswerlayChat extends LitElement {
     `
   }
 
+  private renderLoadingAvatar(progress: number) {
+    const pct = Math.max(0, Math.min(1, progress))
+    const r = 14
+    const c = 2 * Math.PI * r
+    const offset = c * (1 - pct)
+    const label = `AI model loading ${Math.round(pct * 100)}%`
+    return html`
+      <span
+        class="header-avatar header-avatar-loading"
+        role="img"
+        aria-label=${label}
+      >
+        <svg class="ring" viewBox="0 0 32 32" aria-hidden="true">
+          <circle class="ring-track" cx="16" cy="16" r=${r}></circle>
+          <circle
+            class="ring-fill"
+            cx="16"
+            cy="16"
+            r=${r}
+            stroke-dasharray=${c}
+            stroke-dashoffset=${offset}
+          ></circle>
+        </svg>
+        <span class="header-logo-mark" aria-hidden="true"></span>
+      </span>
+    `
+  }
+
+  private renderThumbsAvatar(seed: string) {
+    return html`
+      <span class="header-avatar header-avatar-thumbs" aria-hidden="true"
+        >${unsafeHTML(thumbsAvatarSvg(seed))}</span
+      >
+    `
+  }
+
   private renderHeader() {
     const state = this.controller.state
     const cfg = state.config?.config
-    const statusLabel = cfg?.statusLabel || 'Ready to help'
+    const llmStage = state.stages.llm
+    // LLM is still downloading. Mobile never enters this state (tier D
+    // skips the llm stage). Errors fall back to the standard header — the
+    // engine silently downgrades to scenarios-only and the user can't act
+    // on a persistent yellow warning.
+    const llmLoading =
+      !this.mobile &&
+      llmStage.status !== 'done' &&
+      llmStage.status !== 'skipped' &&
+      llmStage.status !== 'error'
+    const seed = cfg?.name ?? 'Answerlay'
+    const statusLabel = llmLoading
+      ? 'Limited knowledge available · full AI assistant is loading'
+      : cfg?.statusLabel || 'AI assistant ready to answer'
     return html`
       <header class="header">
-        <span class="header-avatar" aria-hidden="true">${userIcon}</span>
+        ${llmLoading
+          ? this.renderLoadingAvatar(llmStage.progress ?? 0)
+          : this.renderThumbsAvatar(seed)}
         <div class="head-text">
           <h3 class="head-title">${cfg?.name ?? 'Chat'}</h3>
           <div class="head-status">
-            <span class="status-dot" aria-hidden="true"></span>
-            <span>${statusLabel}</span>
+            <span
+              class=${llmLoading ? 'status-dot is-loading' : 'status-dot'}
+              aria-hidden="true"
+            ></span>
+            <span class="head-status-text">${statusLabel}</span>
           </div>
         </div>
         ${this.renderModeToggle()}
@@ -735,12 +791,12 @@ export class AnswerlayChat extends LitElement {
 
   override render() {
     const state = this.controller.state
-    const ready = allReady(state.stages)
+    const openable = isChatOpenable(state.stages)
     return html`
       <div class="root">
         ${this.renderLauncher()}
         ${this.open || this.preview
-          ? ready
+          ? openable
             ? this.renderPanel()
             : this.renderLoadingPanel()
           : nothing}

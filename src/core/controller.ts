@@ -579,6 +579,15 @@ export class ChatController implements ReactiveController {
       }
     }
 
+    // If the LLM hasn't finished downloading yet, don't block the user on
+    // the engine promise (that would silently queue the reply for many
+    // seconds). Route to the scenarios-only path, which falls back to the
+    // configured "no match" message gracefully.
+    if (this.state.stages.llm.status !== 'done') {
+      await this.respondScenariosOnly(trimmed)
+      return
+    }
+
     // Run the LLM. The engine is normally pre-warmed at boot, but if
     // pre-warm failed or is mid-flight, fall back to ensureEngine here.
     const engine = await this.ensureEngine()

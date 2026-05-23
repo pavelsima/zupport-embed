@@ -405,17 +405,76 @@ export const chatStyles = css`
   .header-avatar {
     width: 32px;
     height: 32px;
-    background: rgba(255, 255, 255, 0.2);
     border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     color: var(--answerlay-brand-fg);
+    position: relative;
   }
-  .header-avatar svg {
-    width: 18px;
-    height: 18px;
+  .header-avatar-thumbs {
+    background: rgba(255, 255, 255, 0.9);
+    overflow: hidden;
+  }
+  .header-avatar-thumbs svg {
+    width: 32px;
+    height: 32px;
+    display: block;
+  }
+  .header-avatar-loading {
+    background: transparent;
+  }
+  .header-avatar-loading .ring {
+    position: absolute;
+    inset: 0;
+    width: 32px;
+    height: 32px;
+    transform: rotate(-90deg);
+  }
+  .header-avatar-loading .ring-track,
+  .header-avatar-loading .ring-fill {
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .header-avatar-loading .ring-track {
+    stroke: rgba(255, 255, 255, 0.22);
+  }
+  .header-avatar-loading .ring-fill {
+    stroke: #f0c14b;
+    transition: stroke-dashoffset 350ms ease;
+  }
+  .header-logo-mark {
+    --logo-size: 18px;
+    position: relative;
+    width: var(--logo-size);
+    height: var(--logo-size);
+    flex-shrink: 0;
+  }
+  .header-logo-mark::before,
+  .header-logo-mark::after {
+    content: '';
+    position: absolute;
+    width: calc(var(--logo-size) * 0.55);
+    height: calc(var(--logo-size) * 0.55);
+    border-radius: calc(var(--logo-size) * 0.18);
+    border-width: 1.2px;
+    border-style: solid;
+  }
+  .header-logo-mark::before {
+    top: 0;
+    left: 0;
+    background: var(--answerlay-brand-soft);
+    border-color: var(--answerlay-brand);
+    animation: answerlay-logo-a 3.2s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+  }
+  .header-logo-mark::after {
+    bottom: 0;
+    right: 0;
+    background: var(--answerlay-accent-soft);
+    border-color: var(--answerlay-accent);
+    animation: answerlay-logo-b 3.2s cubic-bezier(0.42, 0, 0.58, 1) infinite;
   }
 
   .head-text {
@@ -443,6 +502,12 @@ export const chatStyles = css`
     font-size: 11px;
     color: rgba(255, 255, 255, 0.7);
     letter-spacing: 0.02em;
+    min-width: 0;
+  }
+  .head-status-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .status-dot {
     width: 7px;
@@ -451,6 +516,12 @@ export const chatStyles = css`
     background: var(--answerlay-status-dot);
     box-shadow: 0 0 0 0 rgba(111, 213, 168, 0.6);
     animation: answerlay-ring-pulse 2.2s ease-out infinite;
+    flex-shrink: 0;
+  }
+  .status-dot.is-loading {
+    background: #f0c14b;
+    box-shadow: 0 0 0 0 rgba(240, 193, 75, 0.6);
+    animation: answerlay-ring-pulse-loading 2.2s ease-out infinite;
   }
   @keyframes answerlay-ring-pulse {
     0% {
@@ -461,6 +532,17 @@ export const chatStyles = css`
     }
     100% {
       box-shadow: 0 0 0 0 rgba(111, 213, 168, 0);
+    }
+  }
+  @keyframes answerlay-ring-pulse-loading {
+    0% {
+      box-shadow: 0 0 0 0 rgba(240, 193, 75, 0.5);
+    }
+    70% {
+      box-shadow: 0 0 0 8px rgba(240, 193, 75, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(240, 193, 75, 0);
     }
   }
 
@@ -981,6 +1063,8 @@ export const chatStyles = css`
     .typing span,
     .loading-logo::before,
     .loading-logo::after,
+    .header-logo-mark::before,
+    .header-logo-mark::after,
     .loading-bar.is-indeterminate .loading-bar-fill,
     .message,
     .panel,

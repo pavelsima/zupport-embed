@@ -121,24 +121,6 @@ export const dotsIcon = svg`<svg
   <circle cx="19" cy="12" r="1.6"></circle>
 </svg>`
 
-// Generic user silhouette — used as the default header avatar so the chat
-// reads as "talking to a person" rather than the Answerlay brand mark.
-export const userIcon = svg`<svg
-  xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 24 24"
-  fill="none"
-  stroke="currentColor"
-  stroke-width="2"
-  stroke-linecap="round"
-  stroke-linejoin="round"
-  width="18"
-  height="18"
-  aria-hidden="true"
->
-  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-  <circle cx="12" cy="7" r="4"></circle>
-</svg>`
-
 // CSS-only "two overlapping rounded rectangles" logo mark. The actual
 // rectangles are drawn by .logo-mark::before / ::after in component.ts and
 // reuse --answerlay-brand and --answerlay-accent so the mark inherits the

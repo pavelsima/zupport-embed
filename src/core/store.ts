@@ -114,6 +114,14 @@ export const allReady = (stages: ChatState['stages']): boolean =>
     (s) => s.status === 'done' || s.status === 'skipped',
   )
 
+// Derived: chat panel is interactable. Config + scenarios are the minimum
+// — scenario matching can answer immediately; the LLM keeps downloading
+// in the background and the header surfaces its progress.
+export const isChatOpenable = (stages: ChatState['stages']): boolean => {
+  const ok = (s: LoadStage) => s.status === 'done' || s.status === 'skipped'
+  return ok(stages.config) && ok(stages.scenarios)
+}
+
 // Derived: any stage failed terminally. The loading panel uses this to
 // render a Retry button when the failure can't be silently downgraded.
 export const hasStageError = (stages: ChatState['stages']): boolean =>

@@ -12,7 +12,9 @@ module.exports = [
   {
     name: 'embed.js (CDN bundle, full graph, gzip)',
     path: 'dist/embed.js',
-    limit: '110 kB',
+    // Bumped from 110 KB to accommodate inline @dicebear/core+collection
+    // (~5.5 KB gz) used for the header thumbs avatar.
+    limit: '120 kB',
     gzip: true,
   },
   {
