@@ -15,8 +15,10 @@ import {
 } from '../rag/scenarios-types'
 import type { VectorsPayload } from '../rag/types'
 import { loadConfig, type ResolvedConfig } from './config-loader'
+import { TIER_APPROX_MB } from '../engines/tier'
 import {
   allReady,
+  formatEtaFriendly,
   initialState,
   makeInitialStages,
   newId,
@@ -24,6 +26,7 @@ import {
   scenarioToQuickReply,
   type ChatMessage,
   type ChatState,
+  type DownloadStats,
   type LoadStage,
   type StageKey,
   type Status,
@@ -61,6 +64,15 @@ export class ChatController implements ReactiveController {
   private vectorsPayload: VectorsPayload | null = null
   private greetingMessageId: string | null = null
   private destroyed = false
+
+  // Rolling tracker for the LLM-stage download. We compute speed from
+  // progress deltas with an EMA so a momentary stall (chunk boundary,
+  // checkpoint mount) doesn't make the ETA flap. Reset between runs.
+  private llmTracker: {
+    lastT: number
+    lastP: number
+    smoothed: number
+  } = { lastT: 0, lastP: 0, smoothed: 0 }
 
   constructor(host: ReactiveControllerHost, opts: ControllerOptions) {
     this.host = host
@@ -116,7 +128,66 @@ export class ChatController implements ReactiveController {
         : allReady(nextStages)
           ? 'ready'
           : 'loading'
-    this.setState({ stages: nextStages, status: nextStatus })
+    const downloadStats =
+      key === 'llm'
+        ? this.computeDownloadStats(next)
+        : this.state.downloadStats
+    this.setState({ stages: nextStages, status: nextStatus, downloadStats })
+  }
+
+  // Update the rolling download tracker and return a snapshot for state.
+  // Returns null until the LLM stage actually starts downloading. Once
+  // `done`, holds the final stats (100%) so the avatar can show "Ready".
+  private computeDownloadStats(stage: LoadStage): DownloadStats | null {
+    const tier = this.state.tier?.tier ?? 'A'
+    const totalMB = TIER_APPROX_MB[tier] || 570
+    if (stage.status === 'done') {
+      return {
+        downloadedMB: totalMB,
+        totalMB,
+        speedMBs: this.llmTracker.smoothed,
+        etaSeconds: 0,
+      }
+    }
+    if (stage.status !== 'downloading' && stage.status !== 'mounting') {
+      return this.state.downloadStats
+    }
+    const p =
+      typeof stage.progress === 'number'
+        ? Math.max(0, Math.min(1, stage.progress))
+        : 0
+    const now =
+      typeof performance !== 'undefined' ? performance.now() : Date.now()
+    if (!this.llmTracker.lastT) {
+      this.llmTracker = { lastT: now, lastP: p, smoothed: 0 }
+      return {
+        downloadedMB: p * totalMB,
+        totalMB,
+        speedMBs: 0,
+        etaSeconds: null,
+      }
+    }
+    const dt = (now - this.llmTracker.lastT) / 1000
+    const dp = p - this.llmTracker.lastP
+    if (dt > 0.4 && dp > 0) {
+      const instSpeed = (dp * totalMB) / dt
+      this.llmTracker.smoothed = this.llmTracker.smoothed
+        ? 0.7 * this.llmTracker.smoothed + 0.3 * instSpeed
+        : instSpeed
+      this.llmTracker.lastT = now
+      this.llmTracker.lastP = p
+    }
+    const remaining = (1 - p) * totalMB
+    const etaSeconds =
+      this.llmTracker.smoothed > 0
+        ? Math.max(1, Math.round(remaining / this.llmTracker.smoothed))
+        : null
+    return {
+      downloadedMB: p * totalMB,
+      totalMB,
+      speedMBs: this.llmTracker.smoothed,
+      etaSeconds,
+    }
   }
 
   private pushMessage(msg: ChatMessage): void {
@@ -579,12 +650,12 @@ export class ChatController implements ReactiveController {
       }
     }
 
-    // If the LLM hasn't finished downloading yet, don't block the user on
-    // the engine promise (that would silently queue the reply for many
-    // seconds). Route to the scenarios-only path, which falls back to the
-    // configured "no match" message gracefully.
+    // If the LLM hasn't finished downloading yet, don't block on the
+    // engine promise (would silently queue for many seconds). Push an
+    // ETA-aware fallback message with scenario suggestions so the user
+    // has something useful to click while they wait.
     if (this.state.stages.llm.status !== 'done') {
-      await this.respondScenariosOnly(trimmed)
+      await this.respondLoadingFallback(trimmed)
       return
     }
 
@@ -644,6 +715,66 @@ export class ChatController implements ReactiveController {
       this.opts.emit('answerlay-error', { phase: 'inference', error: message })
       this.setStatus('error', message)
     }
+  }
+
+  // Used when the user asks a non-scenario question before the LLM has
+  // finished downloading. We still surface scenario suggestions (so the
+  // user has something to click) but wrap them with an ETA-aware message
+  // telling them when the full assistant will be ready.
+  private async respondLoadingFallback(question: string): Promise<void> {
+    let suggestions: { scenarioId: string; label: string }[] | undefined
+    let matchedScenario:
+      | { id: string; answer: string; source: 'scenario' }
+      | undefined
+    if (this.scenariosEngine) {
+      const result = await this.scenariosEngine.ask(question)
+      // If the scenarios engine did find a match (rare — shortCircuit
+      // already ran), respect it: better to answer than to nag about
+      // download time.
+      if (result.source === 'scenario' && result.scenario) {
+        matchedScenario = {
+          id: result.scenario.id,
+          answer: result.answer,
+          source: 'scenario',
+        }
+      } else {
+        suggestions = result.suggestions?.map(scenarioToQuickReply)
+      }
+    }
+
+    if (matchedScenario) {
+      this.pushMessage({
+        id: newId('a'),
+        role: 'assistant',
+        content: matchedScenario.answer,
+        status: 'done',
+        source: 'scenario',
+        matchedScenarioId: matchedScenario.id,
+      })
+      this.opts.emit('answerlay-message', {
+        role: 'assistant',
+        text: matchedScenario.answer,
+        matchedScenarioId: matchedScenario.id,
+      })
+      this.setStatus('ready')
+      return
+    }
+
+    const eta = this.state.downloadStats?.etaSeconds ?? null
+    const etaText = formatEtaFriendly(eta)
+    const content =
+      `I'm not fully trained yet — the full AI assistant will be ready in about ${etaText}. ` +
+      `For now you can try one of the options below, and once I'm done you can ask me anything.`
+    this.pushMessage({
+      id: newId('a'),
+      role: 'assistant',
+      content,
+      status: 'done',
+      source: 'fallback',
+      quickReplies: suggestions && suggestions.length > 0 ? suggestions : undefined,
+    })
+    this.opts.emit('answerlay-message', { role: 'assistant', text: content })
+    this.setStatus('ready')
   }
 
   private async respondScenariosOnly(question: string): Promise<void> {

@@ -73,6 +73,16 @@ export const formatRelativeTime = (createdAt: number, now = Date.now()): string 
   return `${hours}h ago`
 }
 
+// Live download telemetry for the LLM stage. Used by the header avatar
+// tooltip and by the in-chat fallback message when the user asks a
+// question before the model is ready.
+export interface DownloadStats {
+  downloadedMB: number
+  totalMB: number
+  speedMBs: number
+  etaSeconds: number | null
+}
+
 export interface ChatState {
   status: Status
   stages: Record<StageKey, LoadStage>
@@ -81,6 +91,39 @@ export interface ChatState {
   messages: ChatMessage[]
   open: boolean
   errorMessage: string | null
+  downloadStats: DownloadStats | null
+}
+
+export const formatMB = (mb: number): string => {
+  if (mb >= 1000) return `${(mb / 1024).toFixed(1)} GB`
+  if (mb >= 100) return `${Math.round(mb)} MB`
+  return `${mb.toFixed(1)} MB`
+}
+
+export const formatSpeed = (mbps: number): string => {
+  if (!Number.isFinite(mbps) || mbps <= 0) return '—'
+  if (mbps >= 100) return `${Math.round(mbps)} MB/s`
+  if (mbps >= 10) return `${mbps.toFixed(1)} MB/s`
+  return `${mbps.toFixed(2)} MB/s`
+}
+
+export const formatEta = (seconds: number | null): string => {
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return '—'
+  if (seconds < 5) return 'a few seconds'
+  if (seconds < 60) return `${Math.round(seconds)}s`
+  const m = Math.round(seconds / 60)
+  if (m < 60) return m === 1 ? '1 min' : `${m} min`
+  return `${Math.round(seconds / 3600)}h`
+}
+
+// Friendly "in about X" phrasing for the fallback chat message.
+export const formatEtaFriendly = (seconds: number | null): string => {
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return 'a moment'
+  if (seconds < 15) return 'a few seconds'
+  if (seconds < 60) return `${Math.round(seconds)} seconds`
+  const m = Math.round(seconds / 60)
+  if (m < 60) return m === 1 ? '1 minute' : `${m} minutes`
+  return 'a few minutes'
 }
 
 const makeStage = (key: StageKey): LoadStage => ({
@@ -105,6 +148,7 @@ export const initialState: ChatState = {
   messages: [],
   open: false,
   errorMessage: null,
+  downloadStats: null,
 }
 
 // Derived: every non-skipped stage is done (or skipped). Used to decide

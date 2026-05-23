@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.13.1
+
+Polish pass on the async-loading UX from 0.13.0.
+
+- **Bottts avatar.** Header avatar switched from `thumbs` to the Dicebear `bottts` collection on a solid white background — reads more clearly as "this is an AI" on the brand-coloured header.
+- **Shorter status copy + hover tooltip.** Header now shows the short form "Limited mode · loading AI…" / "AI assistant ready" with the full long-form copy available on hover via `title` on `.head-status`.
+- **Live download tooltip.** Controller now tracks LLM-stage progress with an EMA-smoothed speed (resilient to chunk-boundary stalls), pulls total size from `TIER_APPROX_MB`, and exposes `state.downloadStats` (`downloadedMB`, `totalMB`, `speedMBs`, `etaSeconds`). The avatar `title` shows a 2-line tooltip: `Downloading AI assistant` / `230 MB / 570 MB · 4.3 MB/s · 1 min left`.
+- **ETA-aware fallback.** New `controller.respondLoadingFallback()` replaces the prior `respondScenariosOnly` call when the LLM isn't ready. The message reads: "I'm not fully trained yet — the full AI assistant will be ready in about X minutes. For now you can try one of the options below, and once I'm done you can ask me anything." Quick-reply suggestions are still attached from the scenarios engine, and if the engine happens to find a scenario match it answers normally instead of nagging.
+- **Greeting bubble fires on the 5s timer on desktop too.** With chat opening before the LLM is ready, the prior "wait for `status === 'ready'`" gate could delay the bubble by tens of seconds. `shouldShowGreetingBubble` now uses the same `BUBBLE_DELAY_MS` (5s after config load) for both desktop and mobile. Renamed `MOBILE_BUBBLE_DELAY_MS` → `BUBBLE_DELAY_MS` (alias kept for back-compat); unit tests updated.
+- **Size-limit bump.** Bottts is heavier than thumbs (~30 KB gz vs ~5.5 KB gz); CDN budget raised 120 KB → 145 KB.
+
 ## 0.13.0
 
 Open the chat immediately on desktop while the LLM keeps downloading; surface model-load progress in the header instead of a full-page loading screen.

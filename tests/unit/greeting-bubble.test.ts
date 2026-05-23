@@ -29,16 +29,31 @@ describe('shouldShowGreetingBubble', () => {
     expect(shouldShowGreetingBubble({ ...base, status: 'ready', alreadyShown: true })).toBe(false)
   })
 
-  it('desktop: returns true when status flips to ready', () => {
-    expect(shouldShowGreetingBubble({ ...base, status: 'ready' })).toBe(true)
+  it('returns false before configLoadedAt is set', () => {
+    expect(shouldShowGreetingBubble({ ...base, configLoadedAt: null })).toBe(false)
   })
 
-  it('desktop: returns false while still loading', () => {
-    expect(shouldShowGreetingBubble({ ...base, status: 'loading' })).toBe(false)
+  it('desktop: returns false before 5 s elapsed since config load', () => {
+    expect(
+      shouldShowGreetingBubble({ ...base, configLoadedAt: 1000, now: 5999 }),
+    ).toBe(false)
   })
 
-  it('desktop: returns false on error', () => {
-    expect(shouldShowGreetingBubble({ ...base, status: 'error' })).toBe(false)
+  it('desktop: returns true after 5 s elapsed since config load', () => {
+    expect(
+      shouldShowGreetingBubble({ ...base, configLoadedAt: 1000, now: 6000 }),
+    ).toBe(true)
+  })
+
+  it('desktop: ignores status — does not require model ready (LLM loads async)', () => {
+    expect(
+      shouldShowGreetingBubble({
+        ...base,
+        status: 'loading',
+        configLoadedAt: 1000,
+        now: 6500,
+      }),
+    ).toBe(true)
   })
 
   it('mobile: returns false before configLoadedAt is set', () => {

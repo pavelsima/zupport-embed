@@ -8,6 +8,9 @@ import type { AssistantConfig } from '../public/types'
 import {
   aggregateProgress,
   allReady,
+  formatEta,
+  formatMB,
+  formatSpeed,
   hasStageError,
   isChatOpenable,
   type ChatMessage,
@@ -218,8 +221,9 @@ export class AnswerlayChat extends LitElement {
 
     if (cfg && this.configLoadedAt === null) {
       this.configLoadedAt = Date.now()
-      // Mobile branch needs a delayed re-evaluation. Desktop branch reacts
-      // through Lit's normal updated() cycle when `status` flips to `ready`.
+      // Both desktop and mobile now wait `BUBBLE_DELAY_MS` since config
+      // load. We schedule a single re-evaluation; `shouldShowGreetingBubble`
+      // does the actual gating.
       if (
         enabled &&
         this.bubbleMobileTimer === null &&
@@ -503,7 +507,7 @@ export class AnswerlayChat extends LitElement {
     `
   }
 
-  private renderLoadingAvatar(progress: number) {
+  private renderLoadingAvatar(progress: number, tooltip: string) {
     const pct = Math.max(0, Math.min(1, progress))
     const r = 14
     const c = 2 * Math.PI * r
@@ -514,6 +518,7 @@ export class AnswerlayChat extends LitElement {
         class="header-avatar header-avatar-loading"
         role="img"
         aria-label=${label}
+        title=${tooltip}
       >
         <svg class="ring" viewBox="0 0 32 32" aria-hidden="true">
           <circle class="ring-track" cx="16" cy="16" r=${r}></circle>
@@ -539,6 +544,16 @@ export class AnswerlayChat extends LitElement {
     `
   }
 
+  private buildLoadingTooltip(): string {
+    const stats = this.controller.state.downloadStats
+    if (!stats) return 'Downloading AI assistant…'
+    const downloaded = formatMB(stats.downloadedMB)
+    const total = formatMB(stats.totalMB)
+    const speed = formatSpeed(stats.speedMBs)
+    const eta = formatEta(stats.etaSeconds)
+    return `Downloading AI assistant\n${downloaded} / ${total} · ${speed} · ${eta} left`
+  }
+
   private renderHeader() {
     const state = this.controller.state
     const cfg = state.config?.config
@@ -553,22 +568,26 @@ export class AnswerlayChat extends LitElement {
       llmStage.status !== 'skipped' &&
       llmStage.status !== 'error'
     const seed = cfg?.name ?? 'Answerlay'
-    const statusLabel = llmLoading
+    const shortStatus = llmLoading
+      ? 'Limited mode · loading AI…'
+      : cfg?.statusLabel || 'AI assistant ready'
+    const fullStatus = llmLoading
       ? 'Limited knowledge available · full AI assistant is loading'
       : cfg?.statusLabel || 'AI assistant ready to answer'
+    const tooltip = llmLoading ? this.buildLoadingTooltip() : fullStatus
     return html`
       <header class="header">
         ${llmLoading
-          ? this.renderLoadingAvatar(llmStage.progress ?? 0)
+          ? this.renderLoadingAvatar(llmStage.progress ?? 0, tooltip)
           : this.renderThumbsAvatar(seed)}
         <div class="head-text">
           <h3 class="head-title">${cfg?.name ?? 'Chat'}</h3>
-          <div class="head-status">
+          <div class="head-status" title=${fullStatus}>
             <span
               class=${llmLoading ? 'status-dot is-loading' : 'status-dot'}
               aria-hidden="true"
             ></span>
-            <span class="head-status-text">${statusLabel}</span>
+            <span class="head-status-text">${shortStatus}</span>
           </div>
         </div>
         ${this.renderModeToggle()}

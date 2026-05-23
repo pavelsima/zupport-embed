@@ -414,8 +414,9 @@ export const chatStyles = css`
     position: relative;
   }
   .header-avatar-thumbs {
-    background: rgba(255, 255, 255, 0.9);
+    background: #ffffff;
     overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
   }
   .header-avatar-thumbs svg {
     width: 32px;
