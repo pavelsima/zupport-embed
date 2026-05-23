@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.9.7
+
+Tighter answer length, lower topK, harder anti-loop penalty.
+
+- Prompt updated from "1-2 short sentences" to "3-4 short sentences" with explicit `Stop when the question is answered — do not pad` and `Do not repeat the same sentence` directives. After v0.9.6's escape fix SmolLM2 produces coherent answers but kept padding toward the max-token limit (last sentences degenerate into "The data key is also stored... The data key").
+- `topK` default lowered `5` → `3` in `controller.ts`. Earlier prompt log showed unrelated chunks (TanStack Query) leaking into Cache Invalidation answers; trimming to top-3 cuts noise and shrinks the prompt by ~40 %, leaving SmolLM2 more effective attention budget. User-set `topK` in published config still wins.
+- `repetition_penalty` bumped `1.05` → `1.1` to break the late-generation "X ... X ... X" loops without hurting accurate reuse of CONTEXT strings (1.15 in v0.9.3 was too aggressive; 1.1 is the SmolLM2 sweet spot for RAG).
+
 ## 0.9.6
 
 Strip Markdown backslash-escapes from RAG chunks before they hit the LLM.

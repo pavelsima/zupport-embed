@@ -1,6 +1,6 @@
 {
   "name": "@answerlay/embed",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "description": "Embeddable Lit web component chat widget for Answerlay — runs SmolLM2-360M in-browser (WebGPU or WASM) on desktop, scenario matching on mobile. English-only.",
   "license": "MIT",
   "type": "module",

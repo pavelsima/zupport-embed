@@ -126,7 +126,7 @@ const llmHandleQuery = async (payload: {
       do_sample: true,
       temperature: 0.2,
       top_p: 0.9,
-      repetition_penalty: 1.05,
+      repetition_penalty: 1.1,
       streamer,
     })
 
