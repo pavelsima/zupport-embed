@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.9.6
+
+Strip Markdown backslash-escapes from RAG chunks before they hit the LLM.
+
+- Discovered via the v0.9.5 prompt log: chunks stored in `vectors.json` arrive pre-escaped for Markdown rendering — `5\.2`, `\(`, `Cache\_TTL`, etc. SmolLM2-360M cannot see through the escaping; it reads garbled tokens and falls back to generic "I'd be happy to help but..." replies instead of answering from CONTEXT.
+- `buildSystemPrompt()` now runs each chunk heading and text through an `unescapeMarkdown()` pass that removes `\` only when followed by a known Markdown special (`` \`*_{}[]()#+-.!|>~ ``). Leaves real `\n`/`\t` escapes in code untouched.
+- **Upstream fix needed:** the dashboard publish pipeline should store raw chunk text in `vectors.json` and escape only at render time. The embed-side strip is a defence-in-depth shim; future Markdown specials added by the dashboard will need the regex updated here too.
+
 ## 0.9.5
 
 Tune generation params for SmolLM2; conversational system prompt; full-prompt logging.

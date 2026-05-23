@@ -12,6 +12,15 @@ export interface PromptInput {
   history?: PromptHistoryTurn[]
 }
 
+// Strip Markdown backslash-escapes from a chunk. Some publish pipelines
+// store text already escaped for Markdown rendering (e.g. `5\.2`, `\(`,
+// `\_`). For LLM context this is noise that confuses small models —
+// SmolLM2-360M reads `Cache\_TTL` and can't recognise it as a variable.
+// Strip the escape only when the next char is a known Markdown special
+// so we don't accidentally collapse literal "\n" sequences in code.
+const MARKDOWN_ESCAPE_RE = /\\([\\`*_{}[\]()#+\-.!|>~])/g
+const unescapeMarkdown = (s: string): string => s.replace(MARKDOWN_ESCAPE_RE, '$1')
+
 // System prompt used by both the Tier A ONNX path (via chat-template) and
 // the Tier B wllama path (manual ChatML). English-only.
 //
@@ -22,7 +31,9 @@ export interface PromptInput {
 // block immediately after.
 export const buildSystemPrompt = ({ shopName, chunks }: PromptInput): string => {
   const today = new Date().toLocaleDateString()
-  const context = chunks.map((c) => `[${c.heading}]\n${c.text}`).join('\n\n')
+  const context = chunks
+    .map((c) => `[${unescapeMarkdown(c.heading)}]\n${unescapeMarkdown(c.text)}`)
+    .join('\n\n')
   return (
     `You are ${shopName}'s customer support assistant. ` +
     `Use the information below to answer the customer's question in 1-2 short sentences. ` +
