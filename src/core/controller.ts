@@ -419,7 +419,7 @@ export class ChatController implements ReactiveController {
         ),
       }
       this.scenariosPayload = merged
-      this.scenariosEngine = new ScenariosEngine(merged)
+      this.scenariosEngine = new ScenariosEngine(merged, cfg?.scenarioMatchThreshold)
       this.setStage('scenarios', { status: 'done', progress: 1 })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -660,6 +660,7 @@ export class ChatController implements ReactiveController {
       const result = await shortCircuit({
         question: trimmed,
         scenarios: this.scenariosPayload.scenarios,
+        confidentCutoff: this.state.config?.config?.scenarioMatchThreshold,
       })
       if (result.kind === 'scenario') {
         const id = newId('a')

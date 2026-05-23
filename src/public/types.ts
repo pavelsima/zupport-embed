@@ -10,9 +10,9 @@ export interface AssistantConfig {
   topK: number
   maxTokens: number
   scenarioFallbackMessage?: string
-  // Legacy — ignored. Scenario matching is now lexical-only (Fuse); this
-  // cosine threshold no longer applies. Kept so older config.json files
-  // still parse.
+  // Fuse "lower is better" raw-score cutoff used by the lexical matcher
+  // (matcher.ts). Smaller = stricter. Omit to fall back to the embed's
+  // default (LEXICAL_CONFIDENT).
   scenarioMatchThreshold?: number
   // Scenario IDs shown as quick-reply buttons under the greeting (max 8).
   greetingQuickReplyIds?: string[]
@@ -27,6 +27,10 @@ export interface AssistantConfig {
   // config loads (mobile). Auto-hides after 8 s; dismissible; once dismissed
   // in a tab session, it does not reappear (sessionStorage per assistantId).
   showGreetingBubble?: boolean
+  // Avatar shown in the chat header. 'bottts' = generated DiceBear robot
+  // seeded by name (default). 'silhouette' = neutral person icon in brand
+  // color. 'none' = no avatar.
+  avatarStyle?: 'bottts' | 'silhouette' | 'none'
 }
 
 export const DEFAULT_CONFIG: AssistantConfig = {

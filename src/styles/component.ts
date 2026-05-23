@@ -424,6 +424,17 @@ export const chatStyles = css`
     height: 32px;
     display: block;
   }
+  .header-avatar-silhouette {
+    /* Brand-coloured disc with a white person glyph. Uses currentColor in
+       the SVG ring so the brand var themes it. */
+    color: var(--answerlay-brand);
+    overflow: hidden;
+  }
+  .header-avatar-silhouette svg {
+    width: 32px;
+    height: 32px;
+    display: block;
+  }
   .header-avatar-loading {
     background: transparent;
   }

@@ -18,7 +18,10 @@ export interface ScenariosResult {
 export class ScenariosEngine {
   private fuse: ReturnType<typeof buildScenarioFuse> | null = null
 
-  constructor(private readonly payload: ScenariosPayload) {
+  constructor(
+    private readonly payload: ScenariosPayload,
+    private readonly confidentCutoff?: number,
+  ) {
     this.fuse = buildScenarioFuse(payload.scenarios)
   }
 
@@ -27,6 +30,7 @@ export class ScenariosEngine {
       question,
       scenarios: this.payload.scenarios,
       fuse: this.fuse ?? undefined,
+      confidentCutoff: this.confidentCutoff,
     })
 
     if (result.kind === 'scenario') {

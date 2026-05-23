@@ -25,7 +25,7 @@ import {
   sendIcon,
   sparkleIcon,
 } from './icons'
-import { thumbsAvatarSvg } from './dicebear-avatar'
+import { thumbsAvatarSvg, silhouetteAvatarSvg } from './dicebear-avatar'
 import { formatRelativeTime } from '../core/store'
 import {
   BUBBLE_AUTO_HIDE_MS,
@@ -575,6 +575,14 @@ export class AnswerlayChat extends LitElement {
     `
   }
 
+  private renderSilhouetteAvatar() {
+    return html`
+      <span class="header-avatar header-avatar-silhouette" aria-hidden="true"
+        >${unsafeHTML(silhouetteAvatarSvg())}</span
+      >
+    `
+  }
+
   // Rich, live-updating tooltip content for the loading avatar. Reads
   // from the latest state.downloadStats so the values tick with progress
   // samples and the 1 Hz `syncLlmTickTimer`.
@@ -611,17 +619,22 @@ export class AnswerlayChat extends LitElement {
       llmStage.status !== 'skipped' &&
       llmStage.status !== 'error'
     const seed = cfg?.name ?? 'Answerlay'
+    const avatarStyle = cfg?.avatarStyle ?? 'bottts'
     const shortStatus = llmLoading
       ? 'Limited mode · loading AI…'
       : cfg?.statusLabel || 'AI assistant ready'
     const fullStatus = llmLoading
       ? 'Limited knowledge available · full AI assistant is loading'
       : cfg?.statusLabel || 'AI assistant ready to answer'
+    const renderAvatar = () => {
+      if (llmLoading) return this.renderLoadingAvatar(llmStage.progress ?? 0)
+      if (avatarStyle === 'none') return nothing
+      if (avatarStyle === 'silhouette') return this.renderSilhouetteAvatar()
+      return this.renderThumbsAvatar(seed)
+    }
     return html`
       <header class="header">
-        ${llmLoading
-          ? this.renderLoadingAvatar(llmStage.progress ?? 0)
-          : this.renderThumbsAvatar(seed)}
+        ${renderAvatar()}
         <div class="head-text">
           <h3 class="head-title">${cfg?.name ?? 'Chat'}</h3>
           <span class="tooltip-wrap head-status-wrap">

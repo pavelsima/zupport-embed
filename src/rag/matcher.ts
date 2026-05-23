@@ -49,6 +49,7 @@ export const lexicalMatch = (
   scenarios: PublishedScenario[],
   query: string,
   fuse?: Fuse<FuseRow>,
+  confidentCutoff: number = LEXICAL_CONFIDENT,
 ): LexicalResult => {
   if (!query.trim() || scenarios.length === 0) return { best: null, ranked: [] }
   const f = fuse ?? buildFuse(scenarios)
@@ -60,7 +61,7 @@ export const lexicalMatch = (
   }))
   const top = results[0]
   const best =
-    top && (top.score ?? 1) <= LEXICAL_CONFIDENT
+    top && (top.score ?? 1) <= confidentCutoff
       ? { scenario: top.item.ref, score: 1 - (top.score ?? 0), source: 'lexical' as const }
       : null
   return { best, ranked }

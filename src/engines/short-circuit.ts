@@ -11,6 +11,8 @@ export interface ShortCircuitInput {
   question: string
   scenarios: PublishedScenario[]
   fuse?: Fuse<{ id: string; question: string; variants: string; ref: PublishedScenario }>
+  /** Optional Fuse "lower is better" cutoff; falls back to LEXICAL_CONFIDENT. */
+  confidentCutoff?: number
 }
 
 export interface ShortCircuitHit {
@@ -34,7 +36,7 @@ export type ShortCircuitResult = ShortCircuitHit | ShortCircuitMiss
 export const shortCircuit = async (
   input: ShortCircuitInput,
 ): Promise<ShortCircuitResult> => {
-  const lex = lexicalMatch(input.scenarios, input.question, input.fuse)
+  const lex = lexicalMatch(input.scenarios, input.question, input.fuse, input.confidentCutoff)
   if (lex.best) {
     return {
       kind: 'scenario',
