@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.11.0
+
+Tier A switched to Qwen3-0.6B (~450 MB). Quality of a 1.7B-class model at a third of the download.
+
+- 1.0 GB SmolLM2-1.7B was too large; SmolLM2-360M too weak. Qwen3-0.6B at q4f16 lands in the ~450 MB sweet spot and is significantly stronger than SmolLM2-360M on grounded RAG (Qwen3 model card benchmarks).
+- Qwen3's "thinking mode" is **disabled** via `enable_thinking: false` in `apply_chat_template`. Reasoning prefixes (`<think>...</think>`) would waste tokens for support-style replies. As a safety net the worker still strips any residual `<think>...</think>` (and unterminated trailing `<think>`) spans from the final output before posting `done`.
+- Generation params updated to Qwen3's non-thinking defaults: `temperature 0.3` (lowered from HF's 0.7 because grounded RAG benefits from CONTEXT adherence), `top_p 0.8`, `top_k 20`, `repetition_penalty 1.0`. SmolLM2-era anti-loop bumps no longer needed.
+- `TIER_LABELS.A` → `'Qwen3-0.6B (WebGPU)'`; `TIER_APPROX_MB.A` → `450`. Tier B remains SmolLM2-360M via wllama (different model family on the WASM path is fine — Tier B is a no-WebGPU fallback, not a quality-equivalent mirror).
+- **Known minor risk:** streaming may briefly flash a `<think>` artifact before the final-output strip catches it. With `enable_thinking: false` this should not happen in practice; if it does, a per-token filter can be added.
+
 ## 0.10.0
 
 Tier A upgraded to SmolLM2-**1.7B**-Instruct. Quality > download size.

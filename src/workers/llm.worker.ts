@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-// SmolLM2-1.7B-Instruct ONNX worker (Tier A, English-only). The transformers.js
+// Qwen3-0.6B ONNX worker (Tier A, English-only). The transformers.js
 // library is loaded from jsDelivr at runtime — bundling it into our package
 // would balloon the CDN footprint by 25+ MB (the ONNX Runtime WASM is huge).
 // The trade-off is one extra network request on first use; afterwards the
@@ -19,7 +19,13 @@ interface RetrievalChunkLite {
   text: string
 }
 
-const LLM_MODEL_ID = 'HuggingFaceTB/SmolLM2-1.7B-Instruct'
+const LLM_MODEL_ID = 'onnx-community/Qwen3-0.6B-ONNX'
+
+// Strip Qwen3 reasoning blocks. We disable thinking via the chat
+// template, but as a safety net we also remove any <think>...</think>
+// spans (and any unterminated trailing <think>) from final output.
+const stripThinkBlocks = (s: string): string =>
+  s.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<think>[\s\S]*$/, '').trim()
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let llmGenerator: any = null
@@ -98,10 +104,15 @@ const llmHandleQuery = async (payload: {
     )
     const messages = llmBuildMessages(payload)
 
-    // SmolLM2's chat template is bundled in the tokenizer config.
+    // Qwen3's chat template is bundled in the tokenizer config. We pass
+    // enable_thinking:false so the model skips its <think>...</think>
+    // reasoning prefix and produces a direct answer — appropriate for
+    // grounded RAG support replies where the chain-of-thought would just
+    // burn tokens.
     const prompt = llmGenerator.tokenizer.apply_chat_template(messages, {
       tokenize: false,
       add_generation_prompt: true,
+      enable_thinking: false,
     })
     console.log('[answerlay] llm.worker: prompt sent to model\n' + prompt)
 
@@ -116,20 +127,21 @@ const llmHandleQuery = async (payload: {
       },
     })
 
-    // SmolLM2-1.7B-Instruct: HF model card recommends temperature 0.2 +
-    // top_p 0.9 for factual replies. At 1.7B params the model is robust
-    // enough that we can drop the anti-loop repetition_penalty back to a
-    // mild 1.05 (the heavier 1.1 was a 360M-era band-aid).
+    // Qwen3 non-thinking generation: HF model card recommends temperature
+    // 0.7 / top_p 0.8 / top_k 20 / repetition_penalty 1.0. We pull
+    // temperature down to 0.3 because grounded RAG benefits from sticking
+    // closely to CONTEXT rather than free-associating.
     await llmGenerator(prompt, {
       max_new_tokens: typeof payload.maxTokens === 'number' ? payload.maxTokens : 256,
       do_sample: true,
-      temperature: 0.2,
-      top_p: 0.9,
-      repetition_penalty: 1.05,
+      temperature: 0.3,
+      top_p: 0.8,
+      top_k: 20,
+      repetition_penalty: 1.0,
       streamer,
     })
 
-    llmPost({ type: 'done', text: collected.trim() })
+    llmPost({ type: 'done', text: stripThinkBlocks(collected) })
   } finally {
     llmIsGenerating = false
   }
