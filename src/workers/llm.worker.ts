@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-// Qwen2.5-0.5B-Instruct ONNX worker (Tier A, English-only). The transformers.js
+// SmolLM2-360M-Instruct ONNX worker (Tier A, English-only). The transformers.js
 // library is loaded from jsDelivr at runtime — bundling it into our package
 // would balloon the CDN footprint by 25+ MB (the ONNX Runtime WASM is huge).
 // The trade-off is one extra network request on first use; afterwards the
@@ -17,7 +17,7 @@ interface RetrievalChunkLite {
   text: string
 }
 
-const LLM_MODEL_ID = 'onnx-community/Qwen2.5-0.5B-Instruct'
+const LLM_MODEL_ID = 'HuggingFaceTB/SmolLM2-360M-Instruct'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let llmGenerator: any = null
@@ -98,10 +98,13 @@ const llmHandleQuery = async (payload: {
       /* @vite-ignore */ TRANSFORMERS_CDN
     )
     const { TextStreamer } = transformers
+    console.log(
+      '[answerlay] llm.worker: rag chunks',
+      payload.chunks.map((c) => ({ heading: c.heading, len: c.text.length })),
+    )
     const messages = llmBuildMessages(payload)
 
-    // Qwen2.5 uses standard ChatML; template is bundled in the tokenizer
-    // config. No <think> tag handling required (that's Qwen3-only).
+    // SmolLM2's chat template is bundled in the tokenizer config.
     const prompt = llmGenerator.tokenizer.apply_chat_template(messages, {
       tokenize: false,
       add_generation_prompt: true,

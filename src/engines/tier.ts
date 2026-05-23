@@ -1,8 +1,9 @@
 // Engine tiers used by the desktop capability probe. The widget always
 // renders; the tier just decides how it answers.
 //
-// Tier A — Qwen2.5-0.5B-Instruct on WebGPU (~350 MB, English-only)
+// Tier A — SmolLM2-360M-Instruct on WebGPU via transformers.js (~230 MB, English-only)
 // Tier B — SmolLM2-360M-Instruct wllama WASM (~230 MB, 2 GB+ RAM, English-only)
+// (Tiers A and B share a model; A just runs it on WebGPU for speed.)
 // Tier D — scenarios-only (no LLM, no download). Also the mobile path and
 //           the fallback for low-RAM (<2 GB) devices.
 
@@ -28,13 +29,13 @@ export interface TierSelection {
 }
 
 export const TIER_LABELS: Record<Tier, string> = {
-  A: 'Qwen2.5-0.5B (WebGPU)',
+  A: 'SmolLM2-360M (WebGPU)',
   B: 'SmolLM2-360M (WASM)',
   D: 'Scenarios',
 }
 
 export const TIER_APPROX_MB: Record<Tier, number> = {
-  A: 350,
+  A: 230,
   B: 230,
   D: 0,
 }

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.9.2
+
+Tier A switched from Qwen2.5-0.5B to SmolLM2-360M (same model as Tier B, just on WebGPU).
+
+- Qwen2.5-0.5B at q4f16 produced incoherent output on Tier A (word salad, repeated fragments) even after 0.9.1's sampling+repetition_penalty fix. The q4f16 quantization is too aggressive for the 0.5B body. Switched Tier A's LLM to `HuggingFaceTB/SmolLM2-360M-Instruct`, the same model Tier B already runs successfully under wllama WASM. Download drops from ~480 MB observed (Qwen) to ~230 MB.
+- `TIER_LABELS.A` is now `SmolLM2-360M (WebGPU)`; `TIER_APPROX_MB.A` is `230`. Tier A and Tier B now share a model — Tier A just runs it on WebGPU for speed.
+- Added a `[answerlay] llm.worker: rag chunks` console log right before each generation, listing retrieved chunk headings and text lengths. Helps diagnose whether bad answers are RAG retrieval problems or generation problems.
+- Sampling params from 0.9.1 (`temperature: 0.7`, `top_p: 0.9`, `repetition_penalty: 1.15`) are retained — harmless for SmolLM2 and provide a safety net.
+
 ## 0.9.1
 
 Fix Qwen2.5-0.5B degenerate output on Tier A.
