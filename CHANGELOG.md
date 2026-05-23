@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.9.1
+
+Fix Qwen2.5-0.5B degenerate output on Tier A.
+
+- Tier A generation switched from greedy (`do_sample: false`) to sampling with `temperature: 0.7`, `top_p: 0.9`, and `repetition_penalty: 1.15`. Greedy decoding caused Qwen2.5-0.5B to collapse into loops (e.g. `"The - The - The..."`) or echo the user's question back. Llama-3.2-1B was large enough to stay coherent under greedy; Qwen2.5-0.5B is not.
+
 ## 0.9.0
 
 Smaller Tier A download: swap Llama-3.2-1B for Qwen2.5-0.5B.

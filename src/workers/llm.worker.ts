@@ -118,9 +118,14 @@ const llmHandleQuery = async (payload: {
       },
     })
 
+    // Qwen2.5-0.5B degenerates into loops ("The The The...") under greedy
+    // decoding. Sampling + a mild repetition penalty keeps it coherent.
     await llmGenerator(prompt, {
       max_new_tokens: typeof payload.maxTokens === 'number' ? payload.maxTokens : 256,
-      do_sample: false,
+      do_sample: true,
+      temperature: 0.7,
+      top_p: 0.9,
+      repetition_penalty: 1.15,
       streamer,
     })
 
