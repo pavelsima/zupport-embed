@@ -590,7 +590,7 @@ export class ChatController implements ReactiveController {
 
     const vectors = this.vectorsPayload
     const topK = this.state.config?.config.topK ?? 5
-    const maxTokens = this.state.config?.config.maxTokens ?? 256
+    const maxTokens = this.state.config?.config.maxTokens ?? 160
     let chunks: ReturnType<typeof toRetrievalChunk>[] = []
     if (vectors && vectors.chunks.length > 0) {
       try {

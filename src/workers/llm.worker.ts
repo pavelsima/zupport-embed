@@ -5,6 +5,8 @@
 // The trade-off is one extra network request on first use; afterwards the
 // library is HTTP-cached by the browser.
 
+import { buildSystemPrompt } from '../engines/prompt'
+
 const TRANSFORMERS_CDN =
   'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/dist/transformers.min.js'
 
@@ -66,15 +68,7 @@ const llmBuildMessages = ({
   chunks: RetrievalChunkLite[]
   history?: { role: 'user' | 'assistant'; content: string }[]
 }) => {
-  const today = new Date().toLocaleDateString()
-  const context = chunks.map((c) => `[${c.heading}]\n${c.text}`).join('\n\n')
-  const system =
-    `You are a helpful support assistant for ${shopName}.\n` +
-    `Answer questions using ONLY the context provided below.\n` +
-    `If the information is not in the context, say so honestly and suggest contacting support.\n` +
-    `Be concise.\n` +
-    `Today's date: ${today}\n\n` +
-    `--- RELEVANT INFORMATION ---\n${context}\n---`
+  const system = buildSystemPrompt({ shopName, question, chunks })
   return [
     { role: 'system', content: system },
     ...(history ?? []),
@@ -124,7 +118,7 @@ const llmHandleQuery = async (payload: {
     // Qwen2.5-0.5B degenerates into loops ("The The The...") under greedy
     // decoding. Sampling + a mild repetition penalty keeps it coherent.
     await llmGenerator(prompt, {
-      max_new_tokens: typeof payload.maxTokens === 'number' ? payload.maxTokens : 256,
+      max_new_tokens: typeof payload.maxTokens === 'number' ? payload.maxTokens : 160,
       do_sample: true,
       temperature: 0.7,
       top_p: 0.9,

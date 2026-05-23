@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.9.4
+
+Stronger support-assistant persona + shorter, less rambly answers.
+
+- Rewrote `buildSystemPrompt()` in `src/engines/prompt.ts` for sub-1B models. New prompt opens with a friendly customer-support persona, then four numbered rules: 1–3 sentences, no bullet lists, no narration, no hallucinated facts, fall through to "contact human support" when CONTEXT is empty. SmolLM2-360M follows numbered rules and explicit length caps far more reliably than paragraph instructions.
+- Default `maxTokens` lowered from `256` → `160` in both `controller.ts` and `llm.worker.ts`. Users who set `maxTokens` in their published config keep their value; only the fallback changed. Combined with the rule "Reply in 1-3 short sentences" this stops the model from filling a 256-token budget with garbage when it has a 60-token answer.
+- Removed the duplicated system prompt from `llm.worker.ts` — the worker now imports `buildSystemPrompt` from `../engines/prompt`, so Tier A (ONNX) and Tier B (wllama) cannot drift apart again. Bundle size unchanged (the function inlines).
+
 ## 0.9.3
 
 Greeting bubble: 24h cooldown instead of one-shot-per-tab.
