@@ -75,12 +75,28 @@ export const formatRelativeTime = (createdAt: number, now = Date.now()): string 
 
 // Live download telemetry for the LLM stage. Used by the header avatar
 // tooltip and by the in-chat fallback message when the user asks a
-// question before the model is ready.
+// question before the model is ready. `etaAnchor` is the Date.now()
+// timestamp when `etaSeconds` was computed — UIs subtract elapsed time
+// to render a live-ticking countdown without re-reading state every
+// frame.
 export interface DownloadStats {
   downloadedMB: number
   totalMB: number
   speedMBs: number
   etaSeconds: number | null
+  etaAnchor: number
+}
+
+// Project the ETA from an anchor timestamp into "now" so the displayed
+// number ticks down between progress samples. Returns null if the
+// original ETA was null.
+export const liveEtaSeconds = (
+  stats: DownloadStats | null,
+  now: number = Date.now(),
+): number | null => {
+  if (!stats || stats.etaSeconds === null) return null
+  const elapsed = Math.max(0, (now - stats.etaAnchor) / 1000)
+  return Math.max(0, stats.etaSeconds - elapsed)
 }
 
 export interface ChatState {
@@ -116,14 +132,24 @@ export const formatEta = (seconds: number | null): string => {
   return `${Math.round(seconds / 3600)}h`
 }
 
-// Friendly "in about X" phrasing for the fallback chat message.
+// Friendly phrasing for the fallback chat message. Returns a complete
+// time phrase (with leading preposition) so callers can drop it into
+// "...will be ready ${phrase}." without awkward wording like "in about
+// a few seconds".
+//
+// Bands:
+//   null / <=0 : "soon"
+//   <15s       : "in a few seconds"
+//   <40s       : "in about half a minute"
+//   <60s       : "within a minute"
+//   60s+       : "in about 1 minute" / "in about N minutes"
 export const formatEtaFriendly = (seconds: number | null): string => {
-  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return 'a moment'
-  if (seconds < 15) return 'a few seconds'
-  if (seconds < 60) return `${Math.round(seconds)} seconds`
-  const m = Math.round(seconds / 60)
-  if (m < 60) return m === 1 ? '1 minute' : `${m} minutes`
-  return 'a few minutes'
+  if (seconds === null || !Number.isFinite(seconds) || seconds <= 0) return 'soon'
+  if (seconds < 15) return 'in a few seconds'
+  if (seconds < 40) return 'in about half a minute'
+  if (seconds < 60) return 'within a minute'
+  const m = Math.max(1, Math.round(seconds / 60))
+  return m === 1 ? 'in about 1 minute' : `in about ${m} minutes`
 }
 
 const makeStage = (key: StageKey): LoadStage => ({

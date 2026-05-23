@@ -20,6 +20,7 @@ import {
   allReady,
   formatEtaFriendly,
   initialState,
+  liveEtaSeconds,
   makeInitialStages,
   newId,
   resolveGreetingQuickReplies,
@@ -141,12 +142,14 @@ export class ChatController implements ReactiveController {
   private computeDownloadStats(stage: LoadStage): DownloadStats | null {
     const tier = this.state.tier?.tier ?? 'A'
     const totalMB = TIER_APPROX_MB[tier] || 570
+    const wallNow = Date.now()
     if (stage.status === 'done') {
       return {
         downloadedMB: totalMB,
         totalMB,
         speedMBs: this.llmTracker.smoothed,
         etaSeconds: 0,
+        etaAnchor: wallNow,
       }
     }
     if (stage.status !== 'downloading' && stage.status !== 'mounting') {
@@ -165,6 +168,7 @@ export class ChatController implements ReactiveController {
         totalMB,
         speedMBs: 0,
         etaSeconds: null,
+        etaAnchor: wallNow,
       }
     }
     const dt = (now - this.llmTracker.lastT) / 1000
@@ -187,6 +191,7 @@ export class ChatController implements ReactiveController {
       totalMB,
       speedMBs: this.llmTracker.smoothed,
       etaSeconds,
+      etaAnchor: wallNow,
     }
   }
 
@@ -718,11 +723,12 @@ export class ChatController implements ReactiveController {
   }
 
   // Used when the user asks a non-scenario question before the LLM has
-  // finished downloading. We still surface scenario suggestions (so the
-  // user has something to click) but wrap them with an ETA-aware message
-  // telling them when the full assistant will be ready.
+  // finished downloading. The message text promises "options below", so
+  // we *guarantee* quick-replies are attached: lexical suggestions when
+  // we have them, falling back to the configured greeting quick-replies,
+  // and finally to the first few scenarios — whichever yields buttons.
   private async respondLoadingFallback(question: string): Promise<void> {
-    let suggestions: { scenarioId: string; label: string }[] | undefined
+    let suggestions: { scenarioId: string; label: string }[] = []
     let matchedScenario:
       | { id: string; answer: string; source: 'scenario' }
       | undefined
@@ -738,7 +744,7 @@ export class ChatController implements ReactiveController {
           source: 'scenario',
         }
       } else {
-        suggestions = result.suggestions?.map(scenarioToQuickReply)
+        suggestions = result.suggestions?.map(scenarioToQuickReply) ?? []
       }
     }
 
@@ -760,10 +766,30 @@ export class ChatController implements ReactiveController {
       return
     }
 
-    const eta = this.state.downloadStats?.etaSeconds ?? null
-    const etaText = formatEtaFriendly(eta)
+    // Guarantee buttons. The lexical matcher returns nothing when there's
+    // no token overlap; fall back to the curated greeting list, then to
+    // the first few scenarios overall so the user always has something
+    // clickable while they wait.
+    if (suggestions.length === 0) {
+      const cfg = this.state.config?.config
+      const scenarios = this.scenariosPayload?.scenarios ?? []
+      const greeting = resolveGreetingQuickReplies(
+        cfg?.greetingQuickReplyIds,
+        scenarios,
+      )
+      if (greeting.length > 0) {
+        suggestions = greeting
+      } else if (scenarios.length > 0) {
+        suggestions = scenarios.slice(0, 4).map(scenarioToQuickReply)
+      }
+    }
+
+    const liveEta = this.state.downloadStats
+      ? liveEtaSeconds(this.state.downloadStats)
+      : null
+    const etaPhrase = formatEtaFriendly(liveEta)
     const content =
-      `I'm not fully trained yet — the full AI assistant will be ready in about ${etaText}. ` +
+      `I'm not fully trained yet — the full AI assistant will be ready ${etaPhrase}. ` +
       `For now you can try one of the options below, and once I'm done you can ask me anything.`
     this.pushMessage({
       id: newId('a'),
@@ -771,7 +797,7 @@ export class ChatController implements ReactiveController {
       content,
       status: 'done',
       source: 'fallback',
-      quickReplies: suggestions && suggestions.length > 0 ? suggestions : undefined,
+      quickReplies: suggestions.length > 0 ? suggestions : undefined,
     })
     this.opts.emit('answerlay-message', { role: 'assistant', text: content })
     this.setStatus('ready')

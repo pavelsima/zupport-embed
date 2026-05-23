@@ -13,6 +13,7 @@ import {
   formatSpeed,
   hasStageError,
   isChatOpenable,
+  liveEtaSeconds,
   type ChatMessage,
 } from '../core/store'
 import { chatStyles } from '../styles/component'
@@ -135,6 +136,10 @@ export class AnswerlayChat extends LitElement {
   private loadingPhraseTimer: number | null = null
   private bubbleMobileTimer: number | null = null
   private bubbleAutoHideTimer: number | null = null
+  // 1Hz tick while the LLM is downloading so the avatar tooltip's ETA
+  // counts down between progress samples (the underlying smoothed speed
+  // only updates when a new chunk lands).
+  private llmTickTimer: number | null = null
   private configLoadedAt: number | null = null
   private bubbleDismissed = false
 
@@ -189,6 +194,22 @@ export class AnswerlayChat extends LitElement {
     }
   }
 
+  private syncLlmTickTimer(): void {
+    const stage = this.controller?.state.stages.llm
+    const shouldTick =
+      !!stage &&
+      stage.status !== 'done' &&
+      stage.status !== 'skipped' &&
+      stage.status !== 'error' &&
+      !this.mobile
+    if (shouldTick && this.llmTickTimer === null) {
+      this.llmTickTimer = window.setInterval(() => this.requestUpdate(), 1000)
+    } else if (!shouldTick && this.llmTickTimer !== null) {
+      window.clearInterval(this.llmTickTimer)
+      this.llmTickTimer = null
+    }
+  }
+
   override updated(changed: PropertyValues): void {
     if (changed.has('modeOverride') && this.controller) {
       const mode = parseMode(this.modeOverride)
@@ -211,6 +232,7 @@ export class AnswerlayChat extends LitElement {
     this.ensureScrollObservers()
     this.maybeAutoScroll()
     this.evaluateGreetingBubble()
+    this.syncLlmTickTimer()
   }
 
   private evaluateGreetingBubble(): void {
@@ -275,6 +297,10 @@ export class AnswerlayChat extends LitElement {
     if (this.bubbleAutoHideTimer !== null) {
       window.clearTimeout(this.bubbleAutoHideTimer)
       this.bubbleAutoHideTimer = null
+    }
+    if (this.llmTickTimer !== null) {
+      window.clearInterval(this.llmTickTimer)
+      this.llmTickTimer = null
     }
     document.removeEventListener('keydown', this.onDocKey)
     super.disconnectedCallback()
@@ -507,31 +533,36 @@ export class AnswerlayChat extends LitElement {
     `
   }
 
-  private renderLoadingAvatar(progress: number, tooltip: string) {
+  private renderLoadingAvatar(progress: number) {
     const pct = Math.max(0, Math.min(1, progress))
     const r = 14
     const c = 2 * Math.PI * r
     const offset = c * (1 - pct)
     const label = `AI model loading ${Math.round(pct * 100)}%`
     return html`
-      <span
-        class="header-avatar header-avatar-loading"
-        role="img"
-        aria-label=${label}
-        title=${tooltip}
-      >
-        <svg class="ring" viewBox="0 0 32 32" aria-hidden="true">
-          <circle class="ring-track" cx="16" cy="16" r=${r}></circle>
-          <circle
-            class="ring-fill"
-            cx="16"
-            cy="16"
-            r=${r}
-            stroke-dasharray=${c}
-            stroke-dashoffset=${offset}
-          ></circle>
-        </svg>
-        <span class="header-logo-mark" aria-hidden="true"></span>
+      <span class="tooltip-wrap header-avatar-wrap">
+        <span
+          class="header-avatar header-avatar-loading"
+          role="img"
+          aria-label=${label}
+          tabindex="0"
+        >
+          <svg class="ring" viewBox="0 0 32 32" aria-hidden="true">
+            <circle class="ring-track" cx="16" cy="16" r=${r}></circle>
+            <circle
+              class="ring-fill"
+              cx="16"
+              cy="16"
+              r=${r}
+              stroke-dasharray=${c}
+              stroke-dashoffset=${offset}
+            ></circle>
+          </svg>
+          <span class="header-logo-mark" aria-hidden="true"></span>
+        </span>
+        <span class="tooltip tooltip-rich" role="tooltip">
+          ${this.renderLoadingTooltipContent()}
+        </span>
       </span>
     `
   }
@@ -544,14 +575,26 @@ export class AnswerlayChat extends LitElement {
     `
   }
 
-  private buildLoadingTooltip(): string {
+  // Rich, live-updating tooltip content for the loading avatar. Reads
+  // from the latest state.downloadStats so the values tick with progress
+  // samples and the 1 Hz `syncLlmTickTimer`.
+  private renderLoadingTooltipContent() {
     const stats = this.controller.state.downloadStats
-    if (!stats) return 'Downloading AI assistant…'
-    const downloaded = formatMB(stats.downloadedMB)
-    const total = formatMB(stats.totalMB)
-    const speed = formatSpeed(stats.speedMBs)
-    const eta = formatEta(stats.etaSeconds)
-    return `Downloading AI assistant\n${downloaded} / ${total} · ${speed} · ${eta} left`
+    if (!stats) {
+      return html`<span class="tooltip-row tooltip-title"
+        >Downloading AI assistant…</span
+      >`
+    }
+    const liveEta = liveEtaSeconds(stats)
+    return html`
+      <span class="tooltip-row tooltip-title">Downloading AI assistant</span>
+      <span class="tooltip-row tooltip-meta"
+        >${formatMB(stats.downloadedMB)} / ${formatMB(stats.totalMB)}</span
+      >
+      <span class="tooltip-row tooltip-meta"
+        >${formatSpeed(stats.speedMBs)} · ${formatEta(liveEta)} left</span
+      >
+    `
   }
 
   private renderHeader() {
@@ -574,21 +617,25 @@ export class AnswerlayChat extends LitElement {
     const fullStatus = llmLoading
       ? 'Limited knowledge available · full AI assistant is loading'
       : cfg?.statusLabel || 'AI assistant ready to answer'
-    const tooltip = llmLoading ? this.buildLoadingTooltip() : fullStatus
     return html`
       <header class="header">
         ${llmLoading
-          ? this.renderLoadingAvatar(llmStage.progress ?? 0, tooltip)
+          ? this.renderLoadingAvatar(llmStage.progress ?? 0)
           : this.renderThumbsAvatar(seed)}
         <div class="head-text">
           <h3 class="head-title">${cfg?.name ?? 'Chat'}</h3>
-          <div class="head-status" title=${fullStatus}>
-            <span
-              class=${llmLoading ? 'status-dot is-loading' : 'status-dot'}
-              aria-hidden="true"
-            ></span>
-            <span class="head-status-text">${shortStatus}</span>
-          </div>
+          <span class="tooltip-wrap head-status-wrap">
+            <span class="head-status" tabindex="0">
+              <span
+                class=${llmLoading ? 'status-dot is-loading' : 'status-dot'}
+                aria-hidden="true"
+              ></span>
+              <span class="head-status-text">${shortStatus}</span>
+            </span>
+            <span class="tooltip tooltip-plain" role="tooltip"
+              >${fullStatus}</span
+            >
+          </span>
         </div>
         ${this.renderModeToggle()}
         ${!this.preview

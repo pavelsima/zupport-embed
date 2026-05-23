@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.13.2
+
+Tooltip rewrite, live ETA countdown, friendlier fallback wording, and a few UX fixes on top of 0.13.1.
+
+- **Custom tooltip component.** Replaced the HTML `title` attribute on the header avatar and status pill with a Lit-rendered tooltip (new `.tooltip-wrap`/`.tooltip` styles). Native `title` had two issues: ~1.5 s show delay and content frozen at mouseover. The custom tooltip shows in ~60 ms and live-updates every render — so the avatar tooltip can show a ticking download countdown.
+- **Live ETA countdown.** `DownloadStats` gained an `etaAnchor` timestamp; new `liveEtaSeconds(stats, now)` projects the anchored ETA into "now" so the tooltip ticks down between progress samples. A 1 Hz `syncLlmTickTimer` on the chat element calls `requestUpdate()` while the LLM is loading, then stops cleanly on done/skipped/error or disconnect.
+- **Friendlier ETA bands** in the fallback chat message — `formatEtaFriendly` now returns full phrases so callers drop the awkward "in about a few seconds":
+  - `null / <=0` → "soon"
+  - `<15s` → "in a few seconds"
+  - `<40s` → "in about half a minute"
+  - `<60s` → "within a minute"
+  - `60s+` → "in about N minute(s)"
+- **Fallback message always has quick-replies.** The message text promises "options below" but the lexical matcher returns an empty `suggestions` list when there's no token overlap. `respondLoadingFallback` now falls back to the configured greeting quick-replies, then to the first four scenarios overall, so the buttons always appear. It also uses the live (anchor-projected) ETA at message time rather than the stale stored value.
+- **Translucent bottts background.** `.header-avatar-thumbs` background is now `rgb(255 255 255 / 30%)` so the brand colour tints the robot's surroundings instead of stamping a hard white disc on the bar.
+
 ## 0.13.1
 
 Polish pass on the async-loading UX from 0.13.0.

@@ -414,9 +414,10 @@ export const chatStyles = css`
     position: relative;
   }
   .header-avatar-thumbs {
-    background: #ffffff;
+    /* Translucent so the brand-coloured header tints the robot's
+       surroundings instead of stamping a hard white disc on the bar. */
+    background: rgb(255 255 255 / 30%);
     overflow: hidden;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
   }
   .header-avatar-thumbs svg {
     width: 32px;
@@ -476,6 +477,95 @@ export const chatStyles = css`
     background: var(--answerlay-accent-soft);
     border-color: var(--answerlay-accent);
     animation: answerlay-logo-b 3.2s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+  }
+
+  /* ============================================================
+     Lightweight custom tooltip. Rendered inside the normal Lit tree
+     so its content (e.g. live download stats) updates on every
+     render — unlike the native title attribute which only refreshes
+     on mouseout/mouseover and shows after the browser ~1.5 s delay.
+     ============================================================ */
+  .tooltip-wrap {
+    position: relative;
+    display: inline-flex;
+  }
+  .tooltip-wrap > .tooltip {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    background: rgba(20, 22, 26, 0.96);
+    color: #fff;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-family: var(--answerlay-font-body);
+    font-size: 11px;
+    line-height: 1.45;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition:
+      opacity 120ms ease,
+      transform 120ms ease;
+    z-index: 30;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+    letter-spacing: normal;
+  }
+  .tooltip-wrap > .tooltip::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 12px;
+    width: 8px;
+    height: 8px;
+    background: inherit;
+    transform: rotate(45deg);
+  }
+  .tooltip-wrap > .tooltip-plain {
+    max-width: 260px;
+    white-space: normal;
+  }
+  .tooltip-wrap > .tooltip-rich {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    white-space: nowrap;
+  }
+  .tooltip-row {
+    display: block;
+  }
+  .tooltip-title {
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 2px;
+  }
+  .tooltip-meta {
+    color: rgba(255, 255, 255, 0.72);
+    font-family: var(--answerlay-font-mono);
+    font-size: 10.5px;
+  }
+  .tooltip-wrap:hover > .tooltip,
+  .tooltip-wrap:focus-within > .tooltip {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 60ms;
+  }
+  .header-avatar-loading {
+    outline: none;
+    cursor: help;
+  }
+  .head-status {
+    outline: none;
+    cursor: help;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tooltip-wrap > .tooltip {
+      transition: opacity 80ms ease;
+      transform: none;
+    }
+    .tooltip-wrap:hover > .tooltip,
+    .tooltip-wrap:focus-within > .tooltip {
+      transform: none;
+    }
   }
 
   .head-text {
