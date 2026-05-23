@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-// SmolLM2-360M-Instruct ONNX worker (Tier A, English-only). The transformers.js
+// SmolLM2-1.7B-Instruct ONNX worker (Tier A, English-only). The transformers.js
 // library is loaded from jsDelivr at runtime — bundling it into our package
 // would balloon the CDN footprint by 25+ MB (the ONNX Runtime WASM is huge).
 // The trade-off is one extra network request on first use; afterwards the
@@ -19,7 +19,7 @@ interface RetrievalChunkLite {
   text: string
 }
 
-const LLM_MODEL_ID = 'HuggingFaceTB/SmolLM2-360M-Instruct'
+const LLM_MODEL_ID = 'HuggingFaceTB/SmolLM2-1.7B-Instruct'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let llmGenerator: any = null
@@ -116,17 +116,16 @@ const llmHandleQuery = async (payload: {
       },
     })
 
-    // SmolLM2-360M-Instruct recommended generation config (HF model card):
-    // temperature 0.2 for factual replies, top_p 0.9, mild repetition penalty.
-    // Lower temperature than v0.9.3's 0.7 prevents the model from drifting
-    // off-context; 1.05 repetition_penalty is enough to break degenerate
-    // loops without distorting accurate token reuse from CONTEXT.
+    // SmolLM2-1.7B-Instruct: HF model card recommends temperature 0.2 +
+    // top_p 0.9 for factual replies. At 1.7B params the model is robust
+    // enough that we can drop the anti-loop repetition_penalty back to a
+    // mild 1.05 (the heavier 1.1 was a 360M-era band-aid).
     await llmGenerator(prompt, {
-      max_new_tokens: typeof payload.maxTokens === 'number' ? payload.maxTokens : 120,
+      max_new_tokens: typeof payload.maxTokens === 'number' ? payload.maxTokens : 256,
       do_sample: true,
       temperature: 0.2,
       top_p: 0.9,
-      repetition_penalty: 1.1,
+      repetition_penalty: 1.05,
       streamer,
     })
 

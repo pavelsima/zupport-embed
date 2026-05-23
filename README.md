@@ -3,7 +3,7 @@
 Embeddable chat widget for [Answerlay](https://github.com/answerlay) — a Lit web component that renders an AI-powered support chat on your website. MIT licensed.
 
 - **Mobile (phones / tablets):** instant scenario matching from a published `scenarios.json`. No LLM, no big download.
-- **Desktop:** runs an in-browser LLM (SmolLM2-360M on WebGPU, or the same via WASM) over your knowledge-base vectors, with a scenario short-circuit that returns curated answers when confidence is high. English-only.
+- **Desktop:** runs an in-browser LLM (SmolLM2-1.7B on WebGPU, SmolLM2-360M via WASM) over your knowledge-base vectors, with a scenario short-circuit that returns curated answers when confidence is high. English-only.
 - **Tier auto-fallback:** capability probe picks the best engine for the device; falls back to scenarios-only on weak hardware. Always works.
 - **Style-isolated:** Shadow DOM. No CSS leaks, customisable via CSS custom properties.
 

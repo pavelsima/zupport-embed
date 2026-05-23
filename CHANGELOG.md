@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.10.0
+
+Tier A upgraded to SmolLM2-**1.7B**-Instruct. Quality > download size.
+
+- After exhaustive tuning of SmolLM2-360M on Tier A (v0.9.5–v0.9.8 worked through sampling params, prompt structure, escape stripping, topK and maxTokens caps), the 360M model still hallucinated facts and rambled on basic RAG questions. The honest conclusion: 360M is too small to follow grounded-RAG instructions reliably. Tier A now ships `HuggingFaceTB/SmolLM2-1.7B-Instruct` at `dtype: 'q4f16'` (~1.0 GB download). Tier B stays on SmolLM2-360M via wllama WASM for the no-WebGPU fallback.
+- Download size is back to ~1 GB — the project decided to handle this with UI-side messaging/progress instead of model-size compromises.
+- Caps from v0.9.8 reverted: `topK` default `5` (no Math.min ceiling), `maxTokens` default `256`. 1.7B handles longer contexts and longer answers reliably.
+- `repetition_penalty` reduced `1.1` → `1.05`. The aggressive anti-loop value was a 360M-era band-aid; 1.7B doesn't degenerate at the tail.
+- Prompt loosened from "3-4 short sentences" to "concisely — aim for 2-5 short sentences and stop when the question is answered." The bigger model self-regulates length better.
+- `TIER_LABELS.A` → `'SmolLM2-1.7B (WebGPU)'`; `TIER_APPROX_MB.A` → `1000`.
+
 ## 0.9.8
 
 Hard caps on topK and maxTokens — published configs can no longer push past the SmolLM2-360M sweet spot.
