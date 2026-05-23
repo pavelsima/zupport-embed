@@ -46,22 +46,31 @@ const LOADING_SUBLINES = [
   'Doing a little bit of magic…',
 ]
 
-const BUBBLE_DISMISSED_KEY = (assistantId: string) =>
-  `answerlay:greeting-bubble-dismissed:${assistantId}`
+const BUBBLE_LAST_SHOWN_KEY = (assistantId: string) =>
+  `answerlay:greeting-bubble-last-shown:${assistantId}`
+const BUBBLE_COOLDOWN_MS = 24 * 60 * 60 * 1000
 
-function readBubbleDismissed(assistantId: string): boolean {
+// Returns true if the bubble was shown for this assistant within the
+// cooldown window. localStorage (not sessionStorage) so the cooldown
+// survives full tab close — without it visitors get the bubble on every
+// pageview.
+function readBubbleRecentlyShown(assistantId: string): boolean {
   if (typeof window === 'undefined') return false
   try {
-    return window.sessionStorage.getItem(BUBBLE_DISMISSED_KEY(assistantId)) === '1'
+    const raw = window.localStorage.getItem(BUBBLE_LAST_SHOWN_KEY(assistantId))
+    if (!raw) return false
+    const ts = Number.parseInt(raw, 10)
+    if (!Number.isFinite(ts)) return false
+    return Date.now() - ts < BUBBLE_COOLDOWN_MS
   } catch {
     return false
   }
 }
 
-function writeBubbleDismissed(assistantId: string): void {
+function writeBubbleLastShown(assistantId: string): void {
   if (typeof window === 'undefined') return
   try {
-    window.sessionStorage.setItem(BUBBLE_DISMISSED_KEY(assistantId), '1')
+    window.localStorage.setItem(BUBBLE_LAST_SHOWN_KEY(assistantId), String(Date.now()))
   } catch {
     // best-effort — private mode / storage quota
   }
@@ -136,7 +145,7 @@ export class AnswerlayChat extends LitElement {
   override connectedCallback(): void {
     super.connectedCallback()
     if (this.assistantId) {
-      this.bubbleDismissed = readBubbleDismissed(this.assistantId)
+      this.bubbleDismissed = readBubbleRecentlyShown(this.assistantId)
     }
     this.controller = new ChatController(this, {
       assistantId: this.assistantId,
@@ -236,12 +245,12 @@ export class AnswerlayChat extends LitElement {
     if (shouldShow && !this.bubbleVisible) {
       this.bubbleVisible = true
       this.bubbleAlreadyShown = true
-      if (this.assistantId) writeBubbleDismissed(this.assistantId)
-      this.bubbleDismissed = true
       if (this.bubbleAutoHideTimer === null) {
         this.bubbleAutoHideTimer = window.setTimeout(() => {
           this.bubbleAutoHideTimer = null
           this.bubbleVisible = false
+          if (this.assistantId) writeBubbleLastShown(this.assistantId)
+          this.bubbleDismissed = true
         }, BUBBLE_AUTO_HIDE_MS)
       }
     }
@@ -381,6 +390,8 @@ export class AnswerlayChat extends LitElement {
       window.clearTimeout(this.bubbleAutoHideTimer)
       this.bubbleAutoHideTimer = null
     }
+    if (this.assistantId) writeBubbleLastShown(this.assistantId)
+    this.bubbleDismissed = true
   }
 
   // Public API for the dashboard test panel: re-fetch config/scenarios/vectors

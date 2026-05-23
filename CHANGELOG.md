@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.9.3
+
+Greeting bubble: 24h cooldown instead of one-shot-per-tab.
+
+- The bubble was latched to "already shown" the moment it first appeared, via a sessionStorage flag written at show-time. Effect: after any single appearance, every subsequent page load in the same tab silently suppressed the bubble (and many tests in the dashboard never saw it again). Now the latch fires at hide-time (auto-hide completion or × dismiss) and uses a 24-hour cooldown stored in `localStorage` instead of a permanent sessionStorage flag.
+- Storage key renamed `answerlay:greeting-bubble-dismissed:<id>` → `answerlay:greeting-bubble-last-shown:<id>` (stores `Date.now()`). Old sessionStorage entries are simply ignored after upgrade.
+- The pure `shouldShowGreetingBubble()` decision in `src/core/greeting-bubble.ts` is unchanged; only the storage-layer wiring in `src/elements/answerlay-chat.ts` moved.
+
 ## 0.9.2
 
 Tier A switched from Qwen2.5-0.5B to SmolLM2-360M (same model as Tier B, just on WebGPU).
