@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.9.8
+
+Hard caps on topK and maxTokens — published configs can no longer push past the SmolLM2-360M sweet spot.
+
+- `topK` is now `Math.min(config.topK ?? 3, 3)`. Previously v0.9.7's `?? 3` only lowered the default; a published config with `topK: 5` would still pull 5 chunks (and was, per the latest prompt log). The hard cap means clients always send at most 3 chunks to the model regardless of dashboard config, because SmolLM2-360M's effective attention falls off past ~1.5k chars of CONTEXT and extra chunks hurt more than they help.
+- `maxTokens` hard-capped at `Math.min(config.maxTokens ?? 120, 160)`. Default fallback lowered `160` → `120` to force shorter, less rambly answers; the upper cap of `160` prevents any future config from re-enabling the original 256-token rambling regime.
+- These caps are model-size choices, not policy. If a future Tier A model swap reintroduces a stronger LLM, raise both caps in `controller.ts` and remove the `Math.min` ceiling.
+
 ## 0.9.7
 
 Tighter answer length, lower topK, harder anti-loop penalty.

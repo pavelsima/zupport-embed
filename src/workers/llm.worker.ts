@@ -122,7 +122,7 @@ const llmHandleQuery = async (payload: {
     // off-context; 1.05 repetition_penalty is enough to break degenerate
     // loops without distorting accurate token reuse from CONTEXT.
     await llmGenerator(prompt, {
-      max_new_tokens: typeof payload.maxTokens === 'number' ? payload.maxTokens : 160,
+      max_new_tokens: typeof payload.maxTokens === 'number' ? payload.maxTokens : 120,
       do_sample: true,
       temperature: 0.2,
       top_p: 0.9,

@@ -589,8 +589,14 @@ export class ChatController implements ReactiveController {
     }
 
     const vectors = this.vectorsPayload
-    const topK = this.state.config?.config.topK ?? 3
-    const maxTokens = this.state.config?.config.maxTokens ?? 160
+    // Hard cap topK at 3: SmolLM2-360M's effective attention budget falls
+    // off sharply past ~1.5k chars of CONTEXT. Even if the published config
+    // requests more chunks, we clip — extra chunks hurt answer quality more
+    // than they help recall at this model size.
+    const configTopK = this.state.config?.config.topK ?? 3
+    const topK = Math.min(configTopK, 3)
+    const configMaxTokens = this.state.config?.config.maxTokens ?? 120
+    const maxTokens = Math.min(configMaxTokens, 160)
     let chunks: ReturnType<typeof toRetrievalChunk>[] = []
     if (vectors && vectors.chunks.length > 0) {
       try {
