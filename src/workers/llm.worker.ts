@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-// Llama-3.2-1B-Instruct ONNX worker (Tier A, English-only). The transformers.js
+// Qwen2.5-0.5B-Instruct ONNX worker (Tier A, English-only). The transformers.js
 // library is loaded from jsDelivr at runtime — bundling it into our package
 // would balloon the CDN footprint by 25+ MB (the ONNX Runtime WASM is huge).
 // The trade-off is one extra network request on first use; afterwards the
@@ -17,7 +17,7 @@ interface RetrievalChunkLite {
   text: string
 }
 
-const LLM_MODEL_ID = 'onnx-community/Llama-3.2-1B-Instruct'
+const LLM_MODEL_ID = 'onnx-community/Qwen2.5-0.5B-Instruct'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let llmGenerator: any = null
@@ -100,8 +100,8 @@ const llmHandleQuery = async (payload: {
     const { TextStreamer } = transformers
     const messages = llmBuildMessages(payload)
 
-    // Llama-3.2 chat template is bundled in the tokenizer config; no
-    // <think> tag handling required (unlike Qwen3 thinking mode).
+    // Qwen2.5 uses standard ChatML; template is bundled in the tokenizer
+    // config. No <think> tag handling required (that's Qwen3-only).
     const prompt = llmGenerator.tokenizer.apply_chat_template(messages, {
       tokenize: false,
       add_generation_prompt: true,

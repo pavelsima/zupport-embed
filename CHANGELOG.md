@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. This file is managed by [changesets](https://github.com/changesets/changesets).
 
+## 0.9.0
+
+Smaller Tier A download: swap Llama-3.2-1B for Qwen2.5-0.5B.
+
+- Tier A LLM changed from `onnx-community/Llama-3.2-1B-Instruct` to `onnx-community/Qwen2.5-0.5B-Instruct`. WebGPU download drops from ~700 MB to ~350 MB (`dtype: 'q4f16'`), shrinking first-load time roughly 2× on average connections. Tier B (SmolLM2-360M via wllama WASM) is unchanged.
+- `TIER_LABELS.A` is now `Qwen2.5-0.5B (WebGPU)`; `TIER_APPROX_MB.A` is `350`.
+- Qwen2.5 uses standard ChatML; the existing `apply_chat_template` path is unchanged. No `<think>` handling needed (that's Qwen3-only).
+- Expect a small quality drop vs. Llama-3.2-1B on edge-case RAG questions; baseline grounded answering remains solid for shop-support use cases.
+
 ## 0.7.0
 
 Lexical-only scenario matching; embedder retained for RAG only.
