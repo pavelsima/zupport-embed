@@ -12,7 +12,6 @@ const EXTERNAL_FOR_LIB = [
   'fuse.js',
   'marked',
   '@huggingface/transformers',
-  '@wllama/wllama',
 ]
 
 export default defineConfig(({ mode, command }) => {

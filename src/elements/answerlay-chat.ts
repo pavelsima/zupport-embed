@@ -3,7 +3,7 @@ import { customElement, property, query, state } from 'lit/decorators.js'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
 import './answerlay-typewriter'
 import { ChatController } from '../core/controller'
-import { parseMode, parseTier } from '../core/attributes'
+import { parseMode, parseEngine } from '../core/attributes'
 import type { AssistantConfig } from '../public/types'
 import {
   aggregateProgress,
@@ -98,8 +98,8 @@ export class AnswerlayChat extends LitElement {
   @property({ type: String, attribute: 'data-mode-override' })
   modeOverride: string | null = null
 
-  @property({ type: String, attribute: 'data-tier-override' })
-  tierOverride: string | null = null
+  @property({ type: String, attribute: 'data-engine-override' })
+  engineOverride: string | null = null
 
   @property({ type: Boolean, attribute: 'data-preview', reflect: true })
   preview = false
@@ -130,7 +130,6 @@ export class AnswerlayChat extends LitElement {
 
   @query('textarea.input') private inputEl?: HTMLTextAreaElement
   @query('.messages') private messagesEl?: HTMLElement
-  @query('.close-btn') private closeBtnEl?: HTMLButtonElement
   @query('.loading-panel') private loadingPanelEl?: HTMLElement
 
   private loadingPhraseTimer: number | null = null
@@ -145,7 +144,13 @@ export class AnswerlayChat extends LitElement {
 
   private controller!: ChatController
   private followStream = true
-  private lastScrollTop = 0
+  // Tracks the busy→idle edge so we can re-focus the input after a reply
+  // finishes (the input is disabled while thinking/streaming).
+  private wasBusy = false
+  // Tracks the loading→openable edge so we can land focus in the input the
+  // first moment it actually exists in the DOM (the chat panel may have
+  // been showing the loading view when the visitor clicked Open).
+  private wasOpenable = false
   private messagesResizeObserver: ResizeObserver | null = null
   private observedMessagesEl: HTMLElement | null = null
   // Saved value of document.body.style.overflow before we locked it for
@@ -162,7 +167,7 @@ export class AnswerlayChat extends LitElement {
       configUrl: this.configUrl,
       configBaseUrl: this.configBaseUrl,
       modeOverride: parseMode(this.modeOverride),
-      tierOverride: parseTier(this.tierOverride),
+      engineOverride: parseEngine(this.engineOverride),
       disableCache: this.disableCache,
       modelBaseUrl: this.modelBaseUrl,
       inlineConfig: this.config,
@@ -222,13 +227,14 @@ export class AnswerlayChat extends LitElement {
     // Mirror the resolved tier mode onto the reflected `mobile` property so
     // CSS can swap to fullscreen layout. Preview always renders desktop
     // layout (the mode toggle inside the panel handles preview emulation).
-    const tierMode = this.controller?.state.tier?.mode
-    const nextMobile = !this.preview && tierMode === 'mobile'
+    const runtimeMode = this.controller?.state.runtime?.mode
+    const nextMobile = !this.preview && runtimeMode === 'mobile'
     if (nextMobile !== this.mobile) {
       this.mobile = nextMobile
     }
     this.syncBodyScrollLock()
     this.manageFocus(changed)
+    this.manageBusyRefocus()
     this.ensureScrollObservers()
     this.maybeAutoScroll()
     this.evaluateGreetingBubble()
@@ -262,7 +268,7 @@ export class AnswerlayChat extends LitElement {
     const shouldShow = shouldShowGreetingBubble({
       enabled,
       status: state.status,
-      tierMode: state.tier?.mode ?? null,
+      tierMode: state.runtime?.mode ?? null,
       configLoadedAt: this.configLoadedAt,
       now: Date.now(),
       open: this.open,
@@ -334,24 +340,45 @@ export class AnswerlayChat extends LitElement {
   }
 
   private manageFocus(changed: PropertyValues): void {
-    if (!changed.has('open') || !this.open) return
+    const state = this.controller?.state
+    if (!state) {
+      this.wasOpenable = false
+      return
+    }
+    // The chat panel is rendered when isChatOpenable is true — that means
+    // the input exists and is interactive (even if the LLM is still
+    // downloading in the background). The loading panel is rendered
+    // otherwise.
+    const openable = isChatOpenable(state.stages)
+    const justOpened = changed.has('open') && this.open
+    // Loading→chat transition while open: input just appeared, land focus
+    // in it. This fires when the visitor clicks Open before stages finish.
+    const becameOpenable = this.open && openable && !this.wasOpenable
+    this.wasOpenable = this.open && openable
+    if (!justOpened && !becameOpenable) return
     requestAnimationFrame(() => {
-      const state = this.controller?.state
-      if (!state) return
-      if (!allReady(state.stages)) {
+      if (this.open && isChatOpenable(this.controller.state.stages)) {
+        this.inputEl?.focus()
+      } else {
         // Loading panel — move focus to its root so screen readers announce
         // the live region.
         this.loadingPanelEl?.focus()
-        return
-      }
-      if (this.mobile) {
-        // On phones, focus the close button so the keyboard doesn't pop up
-        // immediately (the visitor may want to read the greeting first).
-        this.closeBtnEl?.focus()
-      } else {
-        this.inputEl?.focus()
       }
     })
+  }
+
+  // Return focus to the input on the busy→idle edge so the visitor can type
+  // the next question without reaching for the mouse after a reply lands.
+  private manageBusyRefocus(): void {
+    const status = this.controller?.state.status
+    const isBusy = status === 'thinking' || status === 'streaming'
+    if (this.wasBusy && !isBusy && this.open) {
+      const state = this.controller?.state
+      if (state && allReady(state.stages)) {
+        requestAnimationFrame(() => this.inputEl?.focus())
+      }
+    }
+    this.wasBusy = isBusy
   }
 
   private ensureScrollObservers(): void {
@@ -361,7 +388,6 @@ export class AnswerlayChat extends LitElement {
       this.messagesResizeObserver?.disconnect()
     }
     this.observedMessagesEl = el
-    this.lastScrollTop = el.scrollTop
     el.addEventListener('scroll', this.onMessagesScroll, { passive: true })
     // The typewriter grows the bubble between renders — re-pin on that growth
     // so the streamed text stays in view.
@@ -372,34 +398,37 @@ export class AnswerlayChat extends LitElement {
     }
   }
 
+  private isAtBottom(el: HTMLElement): boolean {
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 24
+  }
+
   private onMessagesScroll = (): void => {
     const el = this.messagesEl
     if (!el) return
-    const isStreaming = this.controller?.state.messages.some((m) => m.status === 'streaming')
-    if (isStreaming && el.scrollTop < this.lastScrollTop - 20) {
-      this.followStream = false
-    }
-    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    if (distFromBottom < 40) this.followStream = true
-    this.lastScrollTop = el.scrollTop
+    // "Anchored at bottom" is the single source of truth: scroll up → stop
+    // following; scroll back to the bottom → resume. The pin's own
+    // scroll-echo lands at scrollHeight − clientHeight, which is *at* the
+    // bottom, so this reads followStream=true (idempotent — no harm).
+    this.followStream = this.isAtBottom(el)
   }
 
   private maybeAutoScroll(): void {
     const el = this.messagesEl
     if (!el) return
-    const isStreaming = this.controller?.state.messages.some((m) => m.status === 'streaming')
-    if (isStreaming && this.followStream) {
-      requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight
-        this.lastScrollTop = el.scrollTop
-      })
-      return
-    }
-    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    if (distFromBottom < 200) {
+    // No isStreaming gate: scenario answers are pushed with status='done'
+    // even though the typewriter still animates the reveal, and we want to
+    // follow that reveal too. followStream is the real source of truth —
+    // it's true when the user is anchored at the bottom or has just hit
+    // Send / a quick-reply, and false the moment they scroll up.
+    if (!this.followStream) return
+    requestAnimationFrame(() => {
+      // Re-check inside the rAF: the user may have scrolled up between
+      // queueing and execution (the typewriter fires many resize events
+      // during a reveal, and we don't want a stale tick to override a
+      // fresh user gesture).
+      if (!this.followStream) return
       el.scrollTop = el.scrollHeight
-      this.lastScrollTop = el.scrollTop
-    }
+    })
   }
 
   private emit(
@@ -439,6 +468,11 @@ export class AnswerlayChat extends LitElement {
     if (!text) return
     this.input = ''
     this.followStream = true
+    // Mark busy here, not just from the controller's status updates: the
+    // scenarios-no-engine fallback path is fully synchronous, which means
+    // Lit coalesces status: ready→thinking→ready into a single render and
+    // the busy→idle edge in manageBusyRefocus would never fire otherwise.
+    this.wasBusy = true
     void this.controller.send(text)
   }
 
@@ -451,6 +485,7 @@ export class AnswerlayChat extends LitElement {
 
   private onQuickReply = (label: string): void => {
     this.followStream = true
+    this.wasBusy = true
     void this.controller.send(label)
   }
 
@@ -512,7 +547,7 @@ export class AnswerlayChat extends LitElement {
     // Host page is driving mode via data-mode-override — suppress the
     // in-panel toggle so the two don't fight.
     if (this.modeOverride) return nothing
-    const current = this.controller.state.tier?.mode ?? 'desktop'
+    const current = this.controller.state.runtime?.mode ?? 'desktop'
     return html`
       <div class="mode-toggle" role="group" aria-label="Preview mode">
         <button
@@ -704,7 +739,7 @@ export class AnswerlayChat extends LitElement {
             : m.role === 'assistant'
               ? html`<answerlay-typewriter
                   .text=${m.content}
-                  .animate=${m.status === 'streaming' || m.source !== 'fallback'}
+                  .animated=${m.status === 'streaming' || m.source !== 'fallback'}
                 ></answerlay-typewriter>`
               : html`<span>${m.content}</span>`}
         </div>
@@ -737,7 +772,16 @@ export class AnswerlayChat extends LitElement {
     if (cfg?.hideCredit) return nothing
     return html`
       <div class="credit">
-        <span class="credit-soft">Powered by Answerlay</span>
+        <span class="credit-soft"
+          >Powered by
+          <a
+            class="credit-link"
+            href="https://answerlay.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Answerlay</a
+          ></span
+        >
         <span class="credit-dot" aria-hidden="true">·</span>
         <span class="credit-strong">Runs locally in your browser</span>
       </div>

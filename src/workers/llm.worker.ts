@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-// Qwen3-0.6B ONNX worker (Tier A, English-only). The transformers.js
+// Qwen3-0.6B ONNX worker (the desktop LLM, English-only). The transformers.js
 // library is loaded from jsDelivr at runtime — bundling it into our package
 // would balloon the CDN footprint by 25+ MB (the ONNX Runtime WASM is huge).
 // The trade-off is one extra network request on first use; afterwards the

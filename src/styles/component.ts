@@ -736,7 +736,7 @@ export const chatStyles = css`
   }
 
   .bubble {
-    padding: 12px 16px;
+    padding: 8px 14px;
     border-radius: 18px;
     font-family: var(--answerlay-font-body);
     font-size: 14px;
@@ -857,7 +857,7 @@ export const chatStyles = css`
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px 14px 10px;
+    padding: 12px 14px 4px;
     background: var(--answerlay-surface);
     border-top: 1px solid var(--answerlay-line);
     flex-shrink: 0;
@@ -924,10 +924,11 @@ export const chatStyles = css`
     justify-content: center;
     gap: 6px;
     font-family: var(--answerlay-font-body);
-    font-size: 11px;
+    font-size: 10px;
+    line-height: 1.2;
     color: var(--answerlay-ink-4);
     background: var(--answerlay-surface);
-    padding: 6px 12px 12px;
+    padding: 3px 10px 5px;
     flex-shrink: 0;
   }
   .credit-soft {
@@ -940,6 +941,17 @@ export const chatStyles = css`
   .credit-strong {
     color: var(--answerlay-brand);
     font-weight: 500;
+  }
+  .credit-link {
+    color: inherit;
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+    transition: color 120ms ease;
+  }
+  .credit-link:hover,
+  .credit-link:focus-visible {
+    color: var(--answerlay-brand);
+    outline: none;
   }
 
   /* ============================================================
@@ -1121,37 +1133,11 @@ export const chatStyles = css`
     color: var(--answerlay-surface);
   }
 
-  /* ============================================================
-     Markdown rendering inside assistant bubbles (typewriter slot).
-     ============================================================ */
-  .markdown :is(p, ul, ol, pre) {
-    margin: 0 0 6px;
-  }
-  .markdown :is(p, ul, ol, pre):last-child {
-    margin-bottom: 0;
-  }
-  .markdown ul,
-  .markdown ol {
-    padding-left: 18px;
-    list-style: revert;
-  }
-  .markdown code {
-    font-family: var(--answerlay-font-mono);
-    font-size: 0.9em;
-    padding: 1px 4px;
-    border-radius: 4px;
-    background: rgba(0, 0, 0, 0.06);
-  }
-  .markdown pre {
-    padding: 8px;
-    background: rgba(0, 0, 0, 0.06);
-    border-radius: 6px;
-    overflow-x: auto;
-  }
-  .markdown a {
-    color: var(--answerlay-brand);
-    text-decoration: underline;
-  }
+  /* Markdown styles for assistant bubbles live inside the
+     <answerlay-typewriter> element (where the rendered <p>/<ul>/<pre>
+     actually exist) — see answerlay-typewriter.ts. Styles defined here
+     in the chat's shadow root don't pierce that boundary. */
+
 
   /* ============================================================
      Reduced motion — disable animations & transitions; keep

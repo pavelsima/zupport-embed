@@ -36,8 +36,10 @@
     "build:types": "tsc -p tsconfig.build.json",
     "build": "npm run clean && npm run build:embed && npm run build:lib && npm run build:types",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "npm run test:unit && npm run test:browser",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
     "lint": "eslint src tests",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,html,css,md}\" \"tests/**/*.ts\"",
     "size": "size-limit",
@@ -53,9 +55,7 @@
     "rag",
     "webgpu",
     "llm",
-    "llama",
-    "smollm",
-    "wllama"
+    "llama"
   ],
   "repository": {
     "type": "git",
@@ -69,7 +69,6 @@
     "@dicebear/collection": "^9.4.2",
     "@dicebear/core": "^9.4.2",
     "@huggingface/transformers": "^3.0.0",
-    "@wllama/wllama": "^2.4.0",
     "fuse.js": "^7.0.0",
     "lit": "^3.2.0",
     "marked": "^14.0.0"

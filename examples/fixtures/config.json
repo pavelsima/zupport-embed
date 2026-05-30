@@ -10,7 +10,7 @@
     "topK": 4,
     "maxTokens": 256
   },
-  "scenariosPublicUrl": "./scenarios.json",
+  "scenariosPublicUrl": "/examples/fixtures/scenarios.json",
   "vectorsPublicUrl": null,
   "builtAt": "2026-05-07T00:00:00.000Z"
 }

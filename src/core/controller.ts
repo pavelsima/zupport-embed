@@ -1,10 +1,9 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit'
 import type { Engine } from '../engines/engine'
 import { LlmEngine } from '../engines/llm'
-import { WllamaEngine } from '../engines/wllama'
 import { ScenariosEngine } from '../engines/scenarios-only'
-import { selectTier, stepDownTier } from '../engines/select'
-import type { Tier, TierSelection } from '../engines/tier'
+import { selectRuntime } from '../engines/select'
+import type { EngineKind, RuntimeSelection } from '../engines/tier'
 import { shortCircuit } from '../engines/short-circuit'
 import { cosineTopK, toRetrievalChunk } from '../rag/retrieve'
 import { QueryEmbedder } from '../rag/query-embedder'
@@ -15,7 +14,7 @@ import {
 } from '../rag/scenarios-types'
 import type { VectorsPayload } from '../rag/types'
 import { loadConfig, type ResolvedConfig } from './config-loader'
-import { TIER_APPROX_MB } from '../engines/tier'
+import { LLM_APPROX_MB } from '../engines/tier'
 import {
   allReady,
   formatEtaFriendly,
@@ -41,7 +40,7 @@ export interface ControllerOptions {
   // `${configBaseUrl}/public%2Fassistants%2F${id}%2Fconfig.json?alt=media`.
   configBaseUrl: string | null
   modeOverride: 'mobile' | 'desktop' | null
-  tierOverride: Tier | null
+  engineOverride: EngineKind | null
   disableCache: boolean
   modelBaseUrl: string | null
   inlineConfig: ResolvedConfig['config'] | null
@@ -149,8 +148,7 @@ export class ChatController implements ReactiveController {
   // Returns null until the LLM stage actually starts downloading. Once
   // `done`, holds the final stats (100%) so the avatar can show "Ready".
   private computeDownloadStats(stage: LoadStage): DownloadStats | null {
-    const tier = this.state.tier?.tier ?? 'A'
-    const totalMB = TIER_APPROX_MB[tier] || 570
+    const totalMB = LLM_APPROX_MB
     const wallNow = Date.now()
     if (stage.status === 'done') {
       return {
@@ -332,9 +330,8 @@ export class ChatController implements ReactiveController {
    *   1. Mark `config` downloading → load config.json → done. On failure,
    *      mark `config` error and abort (other stages stay pending).
    *   2. Seed greeting from config.
-   *   3. Probe device tier. Mark `embedder`/`llm` as skipped where
-   *      appropriate (tier D: skip LLM; mobile launcher click later
-   *      triggers the embedder).
+   *   3. Probe the runtime (mode + engine). Mark `embedder`/`llm` as
+   *      skipped for the scenarios-only engine (mobile / low-memory).
    *   4. Kick off all remaining stages in parallel via Promise.allSettled
    *      so one failure can't tank the others.
    *   5. Status transitions to `ready` automatically when every required
@@ -363,14 +360,14 @@ export class ChatController implements ReactiveController {
       return
     }
 
-    const tier = await selectTier({
+    const runtime = await selectRuntime({
       modeOverride: this.opts.modeOverride,
-      tierOverride: this.opts.tierOverride,
+      engineOverride: this.opts.engineOverride,
     })
-    this.setState({ tier })
+    this.setState({ runtime })
 
-    // Mark stages skipped/pending based on tier.
-    if (tier.tier === 'D') {
+    // Mark stages skipped/pending based on the selected engine.
+    if (runtime.engine === 'scenarios') {
       // Mobile / scenarios-only: no LLM, no embedder. Scenario matching is
       // lexical (Fuse) — keeps iOS off the embedder download.
       // Vectors aren't strictly needed here either, but the user spec is to
@@ -379,22 +376,22 @@ export class ChatController implements ReactiveController {
       this.setStage('embedder', { status: 'skipped' })
     }
 
-    // Vectors are eager-loaded on all tiers. Scenarios payload triggers a
-    // greeting-quick-replies refresh once it lands. Embedder + LLM are tier-
-    // gated.
+    // Vectors are eager-loaded everywhere. Scenarios payload triggers a
+    // greeting-quick-replies refresh once it lands. Embedder + LLM are
+    // engine-gated.
     const tasks: Promise<unknown>[] = [
       this.runScenariosStage().then(() => this.updateGreetingQuickReplies()),
       this.runVectorsStage(),
     ]
-    if (tier.tier !== 'D') {
+    if (runtime.engine === 'llm') {
       tasks.push(this.preWarmEmbedder())
       tasks.push(this.preWarmEngine())
     }
 
-    // Emit ready as soon as the tier is known so listeners that care about
+    // Emit ready as soon as the runtime is known so listeners that care about
     // "openable" can react. The actual chat-ready transition is conveyed
     // through stage progression + the `ready` status flip in setStage.
-    this.opts.emit('answerlay-ready', { tier: tier.tier, mode: tier.mode })
+    this.opts.emit('answerlay-ready', { engine: runtime.engine, mode: runtime.mode })
 
     await Promise.allSettled(tasks)
   }
@@ -511,7 +508,7 @@ export class ChatController implements ReactiveController {
   }
 
   setMode(mode: 'mobile' | 'desktop'): void {
-    if (this.state.tier?.mode === mode) return
+    if (this.state.runtime?.mode === mode) return
     this.engine?.destroy()
     this.engine = null
     this.enginePromise = null
@@ -526,14 +523,18 @@ export class ChatController implements ReactiveController {
         this.setStage('embedder', { status: 'pending' })
       }
     }
-    this.setState({ tier: null })
-    void selectTier({
+    this.setState({ runtime: null })
+    void selectRuntime({
       modeOverride: mode,
-      tierOverride: this.opts.tierOverride,
-    }).then((tier) => {
-      this.setState({ tier })
-      this.opts.emit('answerlay-tier-change', { tier: tier.tier, reason: 'mode-changed' })
-      if (tier.tier !== 'D') {
+      engineOverride: this.opts.engineOverride,
+    }).then((runtime) => {
+      this.setState({ runtime })
+      this.opts.emit('answerlay-tier-change', {
+        engine: runtime.engine,
+        mode: runtime.mode,
+        reason: 'mode-changed',
+      })
+      if (runtime.engine === 'llm') {
         // Re-trigger embedder + LLM pre-warm if they aren't already done.
         if (this.state.stages.embedder.status !== 'done') {
           void this.preWarmEmbedder()
@@ -557,9 +558,9 @@ export class ChatController implements ReactiveController {
 
   private async _initEngine(): Promise<Engine | null> {
     if (this.engine) return this.engine
-    const tier = this.state.tier
-    if (!tier) return null
-    if (tier.tier === 'D') return null
+    const runtime = this.state.runtime
+    if (!runtime) return null
+    if (runtime.engine !== 'llm') return null
 
     this.setStage('llm', { status: 'downloading', progress: 0 })
 
@@ -571,50 +572,32 @@ export class ChatController implements ReactiveController {
       })
     }
 
-    const tryTier = async (t: Tier): Promise<Engine | null> => {
-      try {
-        if (t === 'A') {
-          const e = new LlmEngine(this.opts.modelBaseUrl ?? undefined)
-          await e.init(onProgress)
-          return e
-        }
-        if (t === 'B') {
-          const e = new WllamaEngine(t, this.opts.modelBaseUrl ?? undefined)
-          await e.init(onProgress)
-          return e
-        }
-        return null
-      } catch (err) {
-        this.opts.emit('answerlay-error', {
-          phase: 'engine',
-          error: err instanceof Error ? err.message : String(err),
-        })
-        return null
-      }
+    try {
+      const engine = new LlmEngine(this.opts.modelBaseUrl ?? undefined)
+      await engine.init(onProgress)
+      this.engine = engine
+      this.setStage('llm', { status: 'done', progress: 1 })
+      return engine
+    } catch (err) {
+      this.opts.emit('answerlay-error', {
+        phase: 'engine',
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
 
-    let cur: Tier | null = tier.tier
-    while (cur && cur !== 'D') {
-      const tryFor: Tier = cur
-      const engine = await tryTier(tryFor)
-      if (engine) {
-        this.engine = engine
-        if (tryFor !== tier.tier) {
-          const updated: TierSelection = { ...tier, tier: tryFor, reason: 'engine-init-failed' }
-          this.setState({ tier: updated })
-          this.opts.emit('answerlay-tier-change', { tier: tryFor, reason: 'engine-init-failed' })
-        }
-        this.setStage('llm', { status: 'done', progress: 1 })
-        return engine
-      }
-      cur = stepDownTier(cur)
-    }
-
-    // Every desktop tier failed → silently downgrade to D. The widget keeps
+    // LLM init failed → silently downgrade to scenarios. The widget keeps
     // working on scenarios + fallback, the loading screen flips to ready.
-    const updated: TierSelection = { ...tier, tier: 'D', reason: 'engine-init-failed' }
-    this.setState({ tier: updated })
-    this.opts.emit('answerlay-tier-change', { tier: 'D', reason: 'engine-init-failed' })
+    const updated: RuntimeSelection = {
+      ...runtime,
+      engine: 'scenarios',
+      reason: 'engine-init-failed',
+    }
+    this.setState({ runtime: updated })
+    this.opts.emit('answerlay-tier-change', {
+      engine: 'scenarios',
+      mode: runtime.mode,
+      reason: 'engine-init-failed',
+    })
     this.setStage('llm', { status: 'skipped' })
     return null
   }
@@ -638,7 +621,7 @@ export class ChatController implements ReactiveController {
 
   async send(text: string): Promise<void> {
     if (this.destroyed) return
-    if (!this.state.tier) return
+    if (!this.state.runtime) return
     if (this.state.status === 'thinking' || this.state.status === 'streaming') return
 
     const trimmed = text.trim()
@@ -649,13 +632,13 @@ export class ChatController implements ReactiveController {
 
     this.setStatus('thinking')
 
-    // Tier D / mobile — scenarios only.
-    if (this.state.tier.tier === 'D') {
+    // Scenarios-only engine (mobile / low-memory / LLM init failed).
+    if (this.state.runtime.engine === 'scenarios') {
       await this.respondScenariosOnly(trimmed)
       return
     }
 
-    // Tiers A/B — try short-circuit first.
+    // LLM engine — try the scenario short-circuit first.
     if (this.scenariosPayload) {
       const result = await shortCircuit({
         question: trimmed,

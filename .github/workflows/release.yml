@@ -28,7 +28,10 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test -- --run
+      # Release runs the fast node-only unit suite — the browser tests
+      # already gated this commit on the PR via ci.yml. Keeping the release
+      # path light avoids a 90 s Playwright browser install on every push.
+      - run: npm run test:unit
       - run: npm run build
       - run: npm run size
 

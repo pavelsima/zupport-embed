@@ -1,5 +1,5 @@
 import type { RetrievalChunk } from '../rag/types'
-import type { Tier, EngineMode } from './tier'
+import type { EngineKind } from './tier'
 
 export interface ProgressUpdate {
   file?: string
@@ -31,9 +31,8 @@ export interface InitResult {
 }
 
 export interface Engine {
-  readonly tier: Tier
+  readonly kind: EngineKind
   readonly label: string
-  readonly mode: EngineMode
   readonly approxSizeMB: number
 
   init(onProgress: ProgressCallback): Promise<InitResult>

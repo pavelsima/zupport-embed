@@ -18,7 +18,7 @@ how the same bundle is reused inside the Answerlay Nuxt app.
 │  │ Lit Web Component│  │ ─── boot() ──►  config.json   (Firebase Storage, public)
 │  │  Shadow DOM      │  │             ──►  scenarios.json
 │  │                  │  │             ──►  vectors.json (cached in IndexedDB)
-│  │  ChatController  │  │             ──►  capability probe → tier A/B/C/D
+│  │  ChatController  │  │             ──►  capability probe → llm / scenarios
 │  └──────────────────┘  │             ──►  inlined Worker → transformers.js (jsDelivr)
 │                        │                                  + model weights (HF Hub)
 └────────────────────────┘
@@ -105,19 +105,20 @@ From [src/core/controller.ts](../src/core/controller.ts):
 
 1. **`config-loading`** — fetch `config.json` (or use `inlineConfig` /
    `data-config-url` if supplied). Seed the greeting message.
-2. **`probing`** — capability probe (WebGPU, WASM SIMD, RAM heuristic)
-   picks one of:
-   - **A** — Qwen3-0.6B on WebGPU (`QwenEngine`)
-   - **B** — SmolLM2 via WASM (`WllamaEngine`)
-   - **C** — same as B but reduced
-   - **D** — scenarios-only fallback (`ScenariosEngine`)
+2. **`probing`** — capability probe (mobile detection, WebGPU, RAM
+   heuristic) picks one of:
+   - **`llm`** — Qwen3-0.6B in-browser (`LlmEngine`); the worker selects
+     the WebGPU (q4f16) or WASM (q4) backend internally.
+   - **`scenarios`** — scenarios-only (`ScenariosEngine`), used on mobile
+     and low-memory (<2 GB) desktops.
 3. **`scenarios-loading`** — fetch `scenarios.json` (used both as the
-   short-circuit source for tiers A–C and the only answer source for D).
-   Scenario matching is lexical (Fuse) — no embedder load on Tier D.
+   short-circuit source for the `llm` engine and the only answer source for
+   the `scenarios` engine). Scenario matching is lexical (Fuse) — no
+   embedder load for the `scenarios` engine.
 4. **`ready`** — UI usable. Engines and vectors load lazily on first send.
 
-`data-tier-override` skips the probe; `data-mode-override` forces
-mobile/desktop layout independently of the tier.
+`data-engine-override` (`llm` | `scenarios`) skips the probe;
+`data-mode-override` forces mobile/desktop layout independently.
 
 ## Workers and models
 
@@ -125,11 +126,12 @@ Two web workers, both inlined into the bundle:
 
 - **Embedder** ([src/workers/embedder.worker.ts](../src/workers/embedder.worker.ts))
   — `multilingual-e5-small` (q8 ONNX, WASM). Used **only for RAG
-  retrieval** on tiers A/B/C: the user's query is embedded and matched
-  against the pre-computed `vectors.json`. Tier D (mobile / iOS) does
-  not load this model.
-- **Qwen** ([src/workers/qwen.worker.ts](../src/workers/qwen.worker.ts)) —
-  ONNX Qwen3-0.6B for tier A. Streams tokens back via `postMessage`.
+  retrieval** by the `llm` engine: the user's query is embedded and matched
+  against the pre-computed `vectors.json`. The `scenarios` engine (mobile /
+  iOS) does not load this model.
+- **LLM** ([src/workers/llm.worker.ts](../src/workers/llm.worker.ts)) —
+  ONNX Qwen3-0.6B for the `llm` engine. Streams tokens back via
+  `postMessage`.
 
 Scenario short-circuit matching (intent recognition against
 `scenarios.json`) is **lexical-only** — Fuse over `question` + `variants`,

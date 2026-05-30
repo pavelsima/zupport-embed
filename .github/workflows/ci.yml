@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: Lint, typecheck, build, test
+  unit:
+    name: Lint, typecheck, build, unit tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -23,5 +23,37 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
-      - run: npm test -- --run
+      - run: npm run test:unit
       - run: npm run size
+
+  browser:
+    name: Browser tests (Vitest + Playwright/chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Cache the headless Chromium download keyed on the playwright
+      # version pinned in package-lock — invalidates only when we bump it.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright Chromium + system deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+
+      # System deps (libnss, fonts, etc.) live outside ~/.cache/ms-playwright
+      # so they aren't covered by the cache; reinstall them on a cache hit.
+      - name: Install Playwright system deps (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - run: npm run test:browser

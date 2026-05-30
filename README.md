@@ -2,14 +2,14 @@
 
 Embeddable chat widget for [Answerlay](https://github.com/answerlay) — a Lit web component that renders an AI-powered support chat on your website. MIT licensed.
 
+- **Desktop:** runs Qwen3-0.6B (thinking disabled) in-browser over your knowledge-base vectors — WebGPU when available, WASM otherwise, automatically. Scenario short-circuit returns curated answers when confidence is high. English-only.
 - **Mobile (phones / tablets):** instant scenario matching from a published `scenarios.json`. No LLM, no big download.
-- **Desktop:** runs Qwen3-0.6B (thinking disabled) in-browser over your knowledge-base vectors — WebGPU when available, WASM fallback otherwise, both via transformers.js. Scenario short-circuit returns curated answers when confidence is high. English-only.
-- **Tier auto-fallback:** capability probe picks the best engine for the device; falls back to scenarios-only on weak hardware. Always works.
+- **Always works:** a capability probe picks the right path for the device and falls back to scenario matching on weak hardware.
 - **Style-isolated:** Shadow DOM. No CSS leaks, customisable via CSS custom properties.
 
 ## Install
 
-### Drop-in `<script>` (recommended)
+Drop one `<script>` tag on your page:
 
 ```html
 <script
@@ -23,17 +23,6 @@ That's it — the script auto-injects the floating launcher button in the page c
 
 To pin a specific version, swap `latest` for a tag — e.g. `releases/download/v0.2.0/embed.js`.
 
-### npm
-
-```sh
-npm i @answerlay/embed
-```
-
-```ts
-// Auto-registers <answerlay-chat>
-import '@answerlay/embed/embed'
-```
-
 ## Attributes
 
 | Attribute | Type | Default | Purpose |
@@ -41,9 +30,6 @@ import '@answerlay/embed/embed'
 | `data-assistant-id` | string | required | Identifier used to derive the default config URL |
 | `data-config-base-url` | string | bundled bucket | Override the Firebase Storage bucket base URL |
 | `data-config-url` | string | derived | Fully custom URL (skips the assistant-id derivation) |
-| `data-mode-override` | `mobile \| desktop` | auto | Skip auto-detection |
-| `data-tier-override` | `A \| B \| C \| D` | auto | Force engine tier |
-| `data-preview` | boolean | `false` | Enable in-app preview UI (mode toggle) |
 | `data-disable-cache` | boolean | `false` | Bypass IndexedDB |
 | `data-model-base-url` | string | Hugging Face | Self-host model weights |
 
@@ -62,11 +48,11 @@ answerlay-chat {
 
 ## Browser support
 
-- Chrome/Edge 113+ (Tier A — WebGPU)
-- Safari 17+ macOS (Tier B — WASM)
-- Safari iOS 17+ (mobile / Tier D — scenarios)
-- Firefox 130+ (Tier B — WASM)
-- Android Chrome (mobile / Tier D)
+- Chrome/Edge 113+ (WebGPU)
+- Safari 17+ macOS (WASM)
+- Firefox 130+ (WASM)
+- Safari iOS 17+ (mobile — scenarios)
+- Android Chrome (mobile — scenarios)
 
 ## Privacy
 

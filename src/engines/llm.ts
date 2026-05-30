@@ -5,7 +5,7 @@ import type {
   InitResult,
   ProgressCallback,
 } from './engine'
-import { TIER_APPROX_MB, TIER_LABELS } from './tier'
+import { LLM_APPROX_MB, LLM_LABEL } from './tier'
 // Inlined as a Blob URL so the IIFE embed bundle stays a single file —
 // classic <script src=…> from GitHub Releases can't resolve a separate
 // worker chunk cross-origin.
@@ -19,10 +19,9 @@ interface PendingTask {
 }
 
 export class LlmEngine implements Engine {
-  readonly tier = 'A' as const
-  readonly label = TIER_LABELS.A
-  readonly mode = 'generation' as const
-  readonly approxSizeMB = TIER_APPROX_MB.A
+  readonly kind = 'llm' as const
+  readonly label = LLM_LABEL
+  readonly approxSizeMB = LLM_APPROX_MB
 
   private worker: Worker | null = null
   private device: string | null = null

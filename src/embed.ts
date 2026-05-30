@@ -16,7 +16,8 @@ export type {
   PublishedConfig,
   ScenariosPayload,
   PublishedScenario,
-  Tier,
+  EngineKind,
+  RuntimeMode,
 } from './public/types'
 
 // Auto-inject <answerlay-chat> when this script tag carries
@@ -41,7 +42,7 @@ function autoInject(): void {
     'configUrl',
     'configBaseUrl',
     'modeOverride',
-    'tierOverride',
+    'engineOverride',
     'disableCache',
     'modelBaseUrl',
   ] as const

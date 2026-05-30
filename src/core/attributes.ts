@@ -1,4 +1,4 @@
-import type { Tier } from '../engines/tier'
+import type { EngineKind } from '../engines/tier'
 
 // Attribute → property reflection helpers. Lit handles attribute → property
 // for declared reactive properties, but we keep the parsing here so the
@@ -16,8 +16,8 @@ export const parseMode = (v: string | null): 'mobile' | 'desktop' | null => {
   return null
 }
 
-export const parseTier = (v: string | null): Tier | null => {
-  if (v === 'A' || v === 'B' || v === 'D') return v
+export const parseEngine = (v: string | null): EngineKind | null => {
+  if (v === 'llm' || v === 'scenarios') return v
   return null
 }
 

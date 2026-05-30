@@ -11,7 +11,7 @@ import { renderMarkdown } from '../chat/render-markdown'
 @customElement('answerlay-typewriter')
 export class AnswerlayTypewriter extends LitElement {
   @property({ type: String }) text = ''
-  @property({ type: Number }) speed = 12
+  @property({ type: Number }) speed = 6
   // Named `animated` instead of `animate` to avoid clobbering
   // HTMLElement.animate(). Keep the attribute kebab-case for HTML.
   @property({ type: Boolean, attribute: 'data-animated' }) animated = true
@@ -22,9 +22,43 @@ export class AnswerlayTypewriter extends LitElement {
   private lastFrame = 0
   private lastText = ''
 
+  // Markdown styles live here (in the typewriter's own shadow root)
+  // because that's where the rendered `<p>/<ul>/<pre>` actually exist —
+  // styles defined in the parent chat element don't pierce this boundary.
   static override styles = css`
     :host {
       display: block;
+    }
+    .markdown :is(p, ul, ol, pre) {
+      margin: 0 0 6px;
+    }
+    .markdown :is(p, ul, ol, pre):last-child {
+      margin-bottom: 0;
+    }
+    .markdown :is(p, ul, ol, pre):first-child {
+      margin-top: 0;
+    }
+    .markdown ul,
+    .markdown ol {
+      padding-left: 18px;
+      list-style: revert;
+    }
+    .markdown code {
+      font-family: var(--answerlay-font-mono);
+      font-size: 0.9em;
+      padding: 1px 4px;
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.06);
+    }
+    .markdown pre {
+      padding: 8px;
+      background: rgba(0, 0, 0, 0.06);
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    .markdown a {
+      color: var(--answerlay-brand);
+      text-decoration: underline;
     }
   `
 

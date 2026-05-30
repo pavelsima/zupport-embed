@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseBool, parseMode, parseTier } from '../../src/core/attributes'
+import { parseBool, parseMode, parseEngine } from '../../src/core/attributes'
 
 describe('parseBool', () => {
   it('treats null as false', () => {
@@ -30,16 +30,15 @@ describe('parseMode', () => {
   })
 })
 
-describe('parseTier', () => {
-  it('accepts A/B/D', () => {
-    for (const t of ['A', 'B', 'D']) {
-      expect(parseTier(t)).toBe(t)
-    }
+describe('parseEngine', () => {
+  it('accepts llm and scenarios', () => {
+    expect(parseEngine('llm')).toBe('llm')
+    expect(parseEngine('scenarios')).toBe('scenarios')
   })
-  it('returns null for removed Tier C and other garbage', () => {
-    expect(parseTier('C')).toBeNull()
-    expect(parseTier('E')).toBeNull()
-    expect(parseTier('a')).toBeNull()
-    expect(parseTier(null)).toBeNull()
+  it('returns null for legacy tiers and other garbage', () => {
+    expect(parseEngine('A')).toBeNull()
+    expect(parseEngine('D')).toBeNull()
+    expect(parseEngine('LLM')).toBeNull()
+    expect(parseEngine(null)).toBeNull()
   })
 })

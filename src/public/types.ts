@@ -58,4 +58,9 @@ export type {
   ScenarioMatcherModel,
 } from '../rag/scenarios-types'
 export type { Chunk, VectorsPayload, RetrievalChunk } from '../rag/types'
-export type { Tier, TierSelection, DowngradeReason, EngineMode } from '../engines/tier'
+export type {
+  EngineKind,
+  RuntimeMode,
+  RuntimeSelection,
+  DowngradeReason,
+} from '../engines/tier'

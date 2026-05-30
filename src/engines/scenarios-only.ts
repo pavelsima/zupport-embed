@@ -13,8 +13,8 @@ export interface ScenariosResult {
   matchSource?: 'lexical'
 }
 
-// The scenarios-only "engine" used on Tier D and on mobile. Pure lexical
-// (Fuse) matching — no embedder load.
+// The scenarios-only "engine" used on mobile and low-memory desktops. Pure
+// lexical (Fuse) matching — no embedder load.
 export class ScenariosEngine {
   private fuse: ReturnType<typeof buildScenarioFuse> | null = null
 

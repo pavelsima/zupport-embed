@@ -8,3 +8,5 @@ coverage/
 .idea/
 .vscode/
 .claude/
+# Vitest browser-mode failure screenshots — debug-only, not part of the suite.
+tests/browser/__screenshots__/

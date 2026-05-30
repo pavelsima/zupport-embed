@@ -1,5 +1,5 @@
 import type { PublishedScenario } from '../rag/scenarios-types'
-import type { Tier, TierSelection } from '../engines/tier'
+import type { EngineKind, RuntimeSelection } from '../engines/tier'
 import type { ResolvedConfig } from './config-loader'
 
 // Chat-loop status. Loading concerns live in `stages` (below), not here.
@@ -103,7 +103,7 @@ export interface ChatState {
   status: Status
   stages: Record<StageKey, LoadStage>
   config: ResolvedConfig | null
-  tier: TierSelection | null
+  runtime: RuntimeSelection | null
   messages: ChatMessage[]
   open: boolean
   errorMessage: string | null
@@ -170,7 +170,7 @@ export const initialState: ChatState = {
   status: 'loading',
   stages: makeInitialStages(),
   config: null,
-  tier: null,
+  runtime: null,
   messages: [],
   open: false,
   errorMessage: null,
@@ -214,18 +214,16 @@ export const aggregateProgress = (stages: ChatState['stages']): number => {
   return sum / active.length
 }
 
-// The stages that must be done for the user to send a message at a given
-// tier. Tier D only needs scenarios (lexical-only Fuse matching, no model);
-// tiers A/B/C additionally need the embedder + vectors + LLM for RAG.
-export const requiredStagesForTier = (tier: Tier | null): StageKey[] => {
-  if (tier === 'D' || tier === null) return ['scenarios']
+// The stages that must be done for the user to send a message with a given
+// engine. Scenarios only needs the scenarios payload (lexical Fuse matching,
+// no model); the LLM additionally needs the embedder + vectors for RAG.
+export const requiredStagesForEngine = (engine: EngineKind | null): StageKey[] => {
+  if (engine === 'scenarios' || engine === null) return ['scenarios']
   return ['scenarios', 'vectors', 'embedder', 'llm']
 }
 
 export const newId = (prefix: string): string =>
   `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-
-export const tierLabel = (tier: Tier): string => `Tier ${tier}`
 
 export const scenarioToQuickReply = (s: PublishedScenario) => ({
   scenarioId: s.id,

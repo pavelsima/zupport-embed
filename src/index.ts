@@ -20,22 +20,23 @@ export {
   buildPublicJsonUrl,
   deriveConfigUrl,
 } from './core/defaults'
-export { selectTier, isMobile, isIOS, isAndroid, stepDownTier } from './engines/select'
+export { selectRuntime, isMobile, isIOS, isAndroid } from './engines/select'
 export { shortCircuit, buildScenarioFuse } from './engines/short-circuit'
 export type { ShortCircuitResult, ShortCircuitHit, ShortCircuitMiss } from './engines/short-circuit'
 export { ScenariosEngine } from './engines/scenarios-only'
 export type { ScenariosResult } from './engines/scenarios-only'
 export { LlmEngine } from './engines/llm'
-export { WllamaEngine } from './engines/wllama'
 export { QueryEmbedder } from './rag/query-embedder'
 export { cosineTopK, toRetrievalChunk } from './rag/retrieve'
 export { lexicalMatch, LEXICAL_CONFIDENT } from './rag/matcher'
 export { renderMarkdown } from './chat/render-markdown'
-export {
-  TIER_LABELS,
-  TIER_APPROX_MB,
+export { LLM_LABEL, LLM_APPROX_MB } from './engines/tier'
+export type {
+  EngineKind,
+  RuntimeMode,
+  RuntimeSelection,
+  DowngradeReason,
 } from './engines/tier'
-export type { Tier, TierSelection, EngineMode, DowngradeReason } from './engines/tier'
 export type {
   AssistantConfig,
   PublishedConfig,

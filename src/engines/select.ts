@@ -1,4 +1,4 @@
-import type { Tier, TierSelection } from './tier'
+import type { EngineKind, RuntimeSelection } from './tier'
 
 interface NavigatorWithMemory extends Navigator {
   deviceMemory?: number
@@ -45,10 +45,10 @@ const probeWebGPU = async (timeoutMs = 1500): Promise<boolean> => {
 
 export interface SelectOptions {
   modeOverride?: 'mobile' | 'desktop' | null
-  tierOverride?: Tier | null
+  engineOverride?: EngineKind | null
 }
 
-export const selectTier = async (opts: SelectOptions = {}): Promise<TierSelection> => {
+export const selectRuntime = async (opts: SelectOptions = {}): Promise<RuntimeSelection> => {
   const nav = navigator as NavigatorWithMemory
   const deviceMemoryGB = typeof nav.deviceMemory === 'number' ? nav.deviceMemory : null
   const hardwareConcurrency =
@@ -57,24 +57,36 @@ export const selectTier = async (opts: SelectOptions = {}): Promise<TierSelectio
   const detectedMobile = isMobile()
   const mode = opts.modeOverride ?? (detectedMobile ? 'mobile' : 'desktop')
 
+  // Mobile is always scenarios-only — no LLM, no big download.
   if (mode === 'mobile') {
     return {
-      tier: opts.tierOverride ?? 'D',
       mode: 'mobile',
-      reason: 'mobile',
+      engine: 'scenarios',
       webgpu: false,
+      reason: 'mobile',
       deviceMemoryGB,
       hardwareConcurrency,
     }
   }
 
-  if (opts.tierOverride) {
-    const webgpu = opts.tierOverride === 'A' ? await probeWebGPU() : false
+  // Explicit engine override (dashboard escape hatch).
+  if (opts.engineOverride) {
+    if (opts.engineOverride === 'scenarios') {
+      return {
+        mode: 'desktop',
+        engine: 'scenarios',
+        webgpu: false,
+        reason: null,
+        deviceMemoryGB,
+        hardwareConcurrency,
+      }
+    }
+    const webgpu = await probeWebGPU()
     return {
-      tier: opts.tierOverride,
       mode: 'desktop',
-      reason: null,
+      engine: 'llm',
       webgpu,
+      reason: webgpu ? null : 'no-webgpu',
       deviceMemoryGB,
       hardwareConcurrency,
     }
@@ -83,38 +95,27 @@ export const selectTier = async (opts: SelectOptions = {}): Promise<TierSelectio
   const webgpu = await probeWebGPU()
   const ram = deviceMemoryGB
 
-  // Tier A handles both WebGPU and WASM internally — the worker picks the
-  // backend (q4f16 on WebGPU, q4 on WASM). Any reasonable desktop with
-  // ≥2 GB RAM lands on Tier A; the `reason: 'no-webgpu'` annotation lets
-  // the UI surface the slower WASM path without dropping to a smaller
-  // model. Tier B is kept in the Tier type and in the Engine routing for
-  // back-compat (tierOverride='B' still works), but is no longer
-  // auto-selected.
+  // The LLM worker picks the backend internally (q4f16 on WebGPU, q4 on
+  // WASM). Any reasonable desktop with ≥2 GB RAM runs the LLM; the
+  // `no-webgpu` annotation lets the UI surface the slower WASM path.
   if ((ram ?? 4) >= 2) {
     return {
-      tier: 'A',
       mode: 'desktop',
-      reason: webgpu ? null : 'no-webgpu',
+      engine: 'llm',
       webgpu,
+      reason: webgpu ? null : 'no-webgpu',
       deviceMemoryGB,
       hardwareConcurrency,
     }
   }
 
-  // Tier D — scenarios-only for low-RAM (<2 GB) devices.
+  // Low-RAM (<2 GB) desktop — scenarios-only.
   return {
-    tier: 'D',
     mode: 'desktop',
-    reason: 'low-memory',
+    engine: 'scenarios',
     webgpu,
+    reason: 'low-memory',
     deviceMemoryGB,
     hardwareConcurrency,
   }
-}
-
-// Step the tier down one rung. Used when an engine fails to init at runtime.
-export const stepDownTier = (tier: Tier): Tier | null => {
-  const order: Tier[] = ['A', 'B', 'D']
-  const i = order.indexOf(tier)
-  return i >= 0 && i < order.length - 1 ? order[i + 1]! : null
 }
