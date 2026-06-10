@@ -1,5 +1,7 @@
-// CDN entry — auto-registers <answerlay-chat>. This is the entry referenced
-// by `<script type="module" src="…/dist/embed.js">` on customer sites.
+// CDN entry — registers <answerlay-chat> (legacy) AND <zupport-chat>
+// (post-rebrand) tags backed by the same Lit component. The main app's
+// templates use <zupport-chat>; pre-rebrand customer installs that use
+// <answerlay-chat> keep working unchanged.
 //
 // Why we export the classes: Lit's `@customElement('foo')` decorator
 // registers the tag at module-evaluation time, but rollup's tree-shaker
@@ -7,9 +9,19 @@
 // `__decorate(...)` call). Re-exporting the classes pins them, which
 // keeps the decorated module live in the bundle.
 
-export { AnswerlayChat } from './elements/answerlay-chat'
+import { AnswerlayChat } from './elements/answerlay-chat'
+export { AnswerlayChat }
 export { AnswerlayTypewriter } from './elements/answerlay-typewriter'
 import { injectFonts } from './styles/fonts'
+
+// Alias the canonical class under the new brand tag. customElements rejects
+// re-registering the same constructor under a second name, so we declare a
+// trivial subclass — it inherits every property, slot, attribute, and
+// shadow-DOM behaviour from the parent.
+if (typeof customElements !== 'undefined' && !customElements.get('zupport-chat')) {
+  class ZupportChat extends AnswerlayChat {}
+  customElements.define('zupport-chat', ZupportChat)
+}
 
 export type {
   AssistantConfig,
@@ -20,11 +32,11 @@ export type {
   RuntimeMode,
 } from './public/types'
 
-// Auto-inject <answerlay-chat> when this script tag carries
+// Auto-inject <zupport-chat> when this script tag carries
 // `data-assistant-id`. Lets customers drop a single <script> on the page and
 // get the floating launcher rendered without writing the custom tag by hand.
 // No-ops when the attribute is missing (preserves the manual-tag flow) or when
-// an <answerlay-chat> already exists in the DOM (idempotent).
+// either tag already exists in the DOM (idempotent across the rebrand).
 function autoInject(): void {
   const script =
     (document.currentScript as HTMLScriptElement | null) ??
@@ -33,7 +45,7 @@ function autoInject(): void {
   if (!script) return
   const id = script.dataset.assistantId
   if (!id) return
-  if (document.querySelector('answerlay-chat')) return
+  if (document.querySelector('zupport-chat, answerlay-chat')) return
 
   injectFonts()
 
@@ -48,8 +60,8 @@ function autoInject(): void {
   ] as const
 
   const mount = (): void => {
-    if (document.querySelector('answerlay-chat')) return
-    const el = document.createElement('answerlay-chat')
+    if (document.querySelector('zupport-chat, answerlay-chat')) return
+    const el = document.createElement('zupport-chat')
     for (const k of passthrough) {
       const v = script.dataset[k]
       if (v != null) el.dataset[k] = v
